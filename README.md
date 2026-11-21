@@ -9,14 +9,14 @@
 **Validate Smarter. Compare Faster. Trust Every Decision.**
 
 <p>
-A desktop application for comparing, validating, and auditing spreadsheet data through configurable workflows, reusable templates, and automated reporting.
+A desktop application for comparing, validating, and auditing spreadsheet data through configurable workflows and automated reporting.
 </p>
 
 <br>
 
 <p align="center">
 <a href="https://www.microsoft.com/en-us/windows"><img src="https://img.shields.io/badge/Platform-Windows-blue?style=for-the-badge" alt="Platform: Windows"></a>
-<a href="https://www.electronjs.org/"><img src="https://img.shields.io/badge/Desktop-Electron-47848F?style=for-the-badge&logo=electron&logoColor=white" alt="Desktop: Electron"></a>
+<a href="https://tauri.app/"><img src="https://img.shields.io/badge/Desktop-Tauri-24C8D8?style=for-the-badge&logo=tauri&logoColor=white" alt="Desktop: Tauri"></a>
 <a href="https://react.dev/"><img src="https://img.shields.io/badge/Frontend-React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="Frontend: React"></a>
 <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="Language: TypeScript"></a>
 <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="Backend: FastAPI"></a>
@@ -41,6 +41,8 @@ A desktop application for comparing, validating, and auditing spreadsheet data t
 - [Use Cases](#use-cases)
 - [Technology Stack](#technology-stack)
 - [Architecture](#architecture)
+- [Getting Started](#getting-started)
+- [Testing](#testing)
 
 ---
 
@@ -48,7 +50,7 @@ A desktop application for comparing, validating, and auditing spreadsheet data t
 
 Manual spreadsheet validation is repetitive, time-consuming, and prone to human error.
 
-Clario provides a structured workspace for comparing, validating, and auditing spreadsheet data through reusable templates, configurable validation rules, persistent sessions, and automated reports.
+Clario provides a structured workspace for comparing, validating, and auditing spreadsheet data through configurable validation rules, persistent sessions, and automated reports.
 
 Built for workflows where accuracy matters, Clario helps teams identify inconsistencies faster and maintain reliable data validation processes.
 
@@ -90,7 +92,6 @@ Create configurable validation workflows using:
 - Field mapping
 - Comparison rules
 - Custom validation logic
-- Reusable templates
 
 </td>
 
@@ -110,7 +111,7 @@ Generate professional validation reports containing:
 - Comparison summaries
 - Detected discrepancies
 - Audit information
-- Exportable documentation
+- Exportable PDF report
 
 </td>
 
@@ -151,11 +152,11 @@ Designed with:
 <td width="50%" valign="top">
 
 <h3>
-<img src="https://cdn.simpleicons.org/electron/47848F" width="22">
+<img src="https://cdn.simpleicons.org/tauri/24C8D8" width="22">
 Desktop Application
 </h3>
 
-A native desktop experience powered by Electron.
+A native desktop experience powered by Tauri. The FastAPI backend runs locally on 127.0.0.1 only.
 
 </td>
 
@@ -169,16 +170,16 @@ A native desktop experience powered by Electron.
 
 ## Application Overview
 
-<img src="./frontend/public/assets/screenshots/dashboard.png" width="900">
-<img src="./frontend/public/assets/screenshots/row-setup.png" width="900">
+<img src="./docs/screenshots/dashboard.png" width="900">
+<img src="./docs/screenshots/row-setup.png" width="900">
 
 ## Comparison Builder
 
-<img src="./frontend/public/assets/screenshots/comparison-builder.png" width="900">
+<img src="./docs/screenshots/comparison-builder.png" width="900">
 
 ## Validation Results
 
-<img src="./frontend/public/assets/screenshots/validation-results.png" width="900">
+<img src="./docs/screenshots/validation-results.png" width="900">
 
 ---
 
@@ -355,13 +356,13 @@ SQLite
 
 <br>
 
-<a href="https://www.electronjs.org/">
-<img src="https://cdn.simpleicons.org/electron/47848F" width="45" alt="Electron">
+<a href="https://tauri.app/">
+<img src="https://cdn.simpleicons.org/tauri/24C8D8" width="45" alt="Tauri">
 </a>
 
 <br>
 
-Electron
+Tauri
 
 </details>
 
@@ -402,3 +403,51 @@ Results Processing
 
 Report Generation
 ```
+
+The React UI (Vite, inside the Tauri window) talks to a local FastAPI service at `http://127.0.0.1:8766/api/v1`. Sessions, uploaded working copies, generated PDFs and logs are stored in the `data` folder of the installation (for example `C:\Users\<you>\AppData\Local\Clario\data`). Running from source uses `backend/data/`. `CLARIO_DATA_DIRECTORY` overrides both. Nothing is sent over the network.
+
+Versions before the installer kept their data in `~/.clario`. On first start the app offers to move or copy that data into the new folder, or to start fresh; the original is only removed if you choose **Move here**.
+
+---
+
+# Getting Started
+
+Requirements: Windows, Python 3.12+, Node.js 20–24, and the Rust toolchain for Tauri.
+
+```powershell
+# Backend
+cd backend
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements-dev.txt
+
+# Frontend
+cd ..\frontend
+npm install
+
+# Run backend + desktop shell together (from the repo root)
+cd ..
+.\run-dev.ps1
+```
+
+`run-dev.ps1` starts the backend on `127.0.0.1:8766`, waits for `/health`, then launches `tauri dev`, which serves the UI from Vite on port 1420. To work on the UI in a browser instead, run the backend and `npm run dev` in `frontend/`, then open `http://127.0.0.1:1420`.
+
+To build the installer, run `.\build-desktop.ps1` from the repo root. It packages the backend with PyInstaller into a sidecar (`desktop/tauri/binaries/`), then runs `tauri build` with `desktop/tauri/tauri.bundle.conf.json`, producing a single `Clario_<version>_x64-setup.exe`, copied to `releases/<version>/`.
+
+GitHub releases: bump `version` in `desktop/tauri/tauri.conf.json`, commit, then push a matching tag (`git tag v0.1.0 && git push origin v0.1.0`). The Release workflow builds the setup and attaches it to a draft pre-release; publish it from the GitHub Releases page. The packaged app starts the backend itself, shows the window once `/health` answers, and stops the backend when it exits; the backend also exits on its own if the app process dies.
+
+The setup wizard lets the user choose the install folder and whether to install for themselves (no admin rights) or for everyone (Program Files). For an all-users install, setup grants the Users group write access to the `data` folder only, and every Windows account on that PC shares the same sessions. Updates and uninstalls keep the `data` folder unless the user ticks **Also delete my sessions and reports** in the uninstaller (hooks: `desktop/tauri/installer-hooks.nsh`).
+
+Scripted installs: `Clario_<version>_x64-setup.exe /S /CurrentUser` (or `/AllUsers`) and `uninstall.exe /S [/DELETEAPPDATA]`. In silent mode the folder comes from the install scope; choosing a custom folder is done in the wizard.
+
+See [docs/dev-troubleshooting.md](docs/dev-troubleshooting.md) for common setup problems.
+
+---
+
+# Testing
+
+```powershell
+cd backend; .venv\Scripts\python -m pytest
+cd ..\frontend; npm run typecheck; npm run e2e
+```
+
+The e2e suite mocks the backend and starts Vite on port 1420 automatically. Run `npx playwright install chromium` once before the first run.
