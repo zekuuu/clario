@@ -1,14 +1,12 @@
 use std::net::{SocketAddr, TcpStream};
 use std::process::{Child, Command};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use tauri::{Manager, RunEvent};
 
 /// Must match the backend default port, the frontend API URL, and the CSP `connect-src`.
 const BACKEND_ADDR: &str = "127.0.0.1:8766";
-// A cold one-file start (unpack + antivirus scan of a fresh build) measured ~40s; warm starts take ~6-9s.
-const BACKEND_START_TIMEOUT: Duration = Duration::from_secs(60);
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -57,6 +55,15 @@ fn stop_backend(child: &mut Child) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        // One app per user. A second launch (e.g. the installer's "Run Clario" plus the Start menu) used to
+        // start a second backend that lost the port race; closing the first window then took the shared
+        // backend down with it and left the other window with "backend not reachable".
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .manage(Backend(Mutex::new(None)))
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
@@ -72,19 +79,12 @@ pub fn run() {
                 }
             }
 
-            // Show the window once the API answers, so the first screen doesn't flash a connection error.
-            // It is shown anyway after the timeout; the UI then reports the backend as unreachable.
-            let handle = app.handle().clone();
-            std::thread::spawn(move || {
-                let started = Instant::now();
-                while !backend_ready() && started.elapsed() < BACKEND_START_TIMEOUT {
-                    std::thread::sleep(Duration::from_millis(200));
-                }
-                if let Some(window) = handle.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            });
+            // Show the window straight away: a cold backend start can take ~40 s, and a hidden window made
+            // people think the app had not opened. The UI shows "Starting Clario…" until /health answers.
+            if let Some(window) = app.get_webview_window("main") {
+                window.show()?;
+                window.set_focus()?;
+            }
 
             Ok(())
         })
