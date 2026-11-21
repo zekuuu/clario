@@ -6,6 +6,9 @@ interface ColumnPickerProps {
   columns: ColumnReference[];
   value: string;
   onChange: (value: string) => void;
+  /** The source's own preview; without it, samples could come from another file with identical columns. */
+  preview?: DataSourcePreview;
+  ariaLabel?: string;
 }
 
 function cellValue(row: PreviewRow, column: ColumnReference) {
@@ -45,18 +48,19 @@ function sampleValuesForColumn(preview: DataSourcePreview | undefined, column: C
     .slice(0, 4);
 }
 
-export function ColumnPicker({ columns, value, onChange }: ColumnPickerProps) {
+export function ColumnPicker({ columns, value, onChange, preview: ownPreview, ariaLabel = "Spreadsheet column" }: ColumnPickerProps) {
   const { sourcePreviews } = useWorkflow();
   const selectedColumn = columns.find((column) => column.letter === value) ?? columns[0];
-  const preview = useMemo(() => findMatchingPreview(columns, sourcePreviews), [columns, sourcePreviews]);
+  const preview = useMemo(() => ownPreview ?? findMatchingPreview(columns, sourcePreviews), [columns, ownPreview, sourcePreviews]);
   const samples = useMemo(() => sampleValuesForColumn(preview, selectedColumn), [preview, selectedColumn]);
 
   return (
     <div>
       <select
+        aria-label={ariaLabel}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-600 focus:ring-3 focus:ring-emerald-100"
+        className="w-full rounded-xl border border-slate-300 bg-panel px-3 py-2.5 text-sm outline-none transition focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-600/40"
       >
         {columns.map((column) => (
           <option key={column.letter} value={column.letter}>
@@ -69,12 +73,12 @@ export function ColumnPicker({ columns, value, onChange }: ColumnPickerProps) {
         <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-semibold text-slate-700">Sample values</p>
-            <p className="text-[11px] text-slate-500">Column {selectedColumn.letter}</p>
+            <p className="text-xs text-slate-500">Column {selectedColumn.letter}</p>
           </div>
           {samples.length ? (
             <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
               {samples.map((sample, index) => (
-                <span key={`${sample}-${index}`} className="block min-w-0 truncate rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700" title={sample}>
+                <span key={`${sample}-${index}`} className="block min-w-0 truncate rounded-full border border-slate-200 bg-panel px-2.5 py-1 text-xs font-medium text-slate-700" title={sample}>
                   {sample}
                 </span>
               ))}

@@ -1,6 +1,7 @@
 import { X, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useDialogFocus } from "../../hooks/useDialogFocus";
 
 interface BuilderDrawerProps {
   title: string;
@@ -85,16 +86,9 @@ export function BuilderDrawer({
     return () => window.clearTimeout(timeoutId);
   }, [open, rendered]);
 
-  useEffect(() => {
-    if (!rendered) return undefined;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      requestCancel();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [requestCancel, rendered]);
+  const dialogRef = useRef<HTMLElement>(null);
+  const titleId = useId();
+  useDialogFocus(dialogRef, requestCancel, rendered && !closing);
 
   useEffect(() => clearCloseTimeout, []);
 
@@ -102,18 +96,19 @@ export function BuilderDrawer({
 
   const drawer = (
     <div className="fixed inset-0 z-[60]">
-      <button
-        className={`absolute inset-0 bg-slate-950/45 backdrop-blur-[3px] ${closing ? "animate-[builder-backdrop-out_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]" : "animate-[builder-backdrop-in_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]"}`}
-        aria-label="Close drawer"
+      <div
+        aria-hidden="true"
+        className={`absolute inset-0 bg-scrim/45 backdrop-blur-[3px] ${closing ? "animate-[builder-backdrop-out_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]" : "animate-[builder-backdrop-in_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]"}`}
         onClick={requestCancel}
       />
       <aside
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="builder-drawer-title"
-        className={`absolute bottom-0 right-0 top-0 flex w-full max-w-2xl flex-col border-l border-slate-200 bg-white shadow-2xl ${closing ? "animate-[builder-drawer-out_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]" : "animate-[builder-drawer-in_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]"}`}
+        aria-labelledby={titleId}
+        className={`absolute bottom-0 right-0 top-0 flex w-full max-w-2xl flex-col border-l border-slate-200 bg-panel shadow-2xl ${closing ? "animate-[builder-drawer-out_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]" : "animate-[builder-drawer-in_220ms_cubic-bezier(0.16,1,0.3,1)_forwards]"}`}
       >
-        <header className="shrink-0 border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_48%),linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] px-5 py-4 sm:px-6">
+        <header className="shrink-0 border-b border-slate-200 bg-panel px-5 py-4 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-start gap-3">
@@ -124,17 +119,17 @@ export function BuilderDrawer({
                 ) : null}
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2 gap-y-1">
-                    <h2 id="builder-drawer-title" className="text-[1.05rem] font-semibold text-slate-950">
+                    <h2 id={titleId} className="text-[1.05rem] font-semibold text-slate-950">
                       {title}
                     </h2>
-                    {dirty ? <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold leading-5 text-amber-700">Unsaved changes</span> : null}
+                    {dirty ? <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold leading-5 text-amber-700">Unsaved changes</span> : null}
                   </div>
                   {description ? <p className="mt-1 max-w-[52ch] text-sm leading-6 text-slate-500">{description}</p> : null}
                 </div>
               </div>
             </div>
             <button
-              className="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+              className="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-panel text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
               onClick={requestCancel}
               aria-label="Close drawer"
               title={dirty ? "Close and decide whether to keep or discard your draft changes" : "Close drawer"}
@@ -156,14 +151,14 @@ export function BuilderDrawer({
           {children}
         </div>
 
-        <footer className="shrink-0 border-t border-slate-200 bg-white/95 px-5 py-4 backdrop-blur sm:px-6">
+        <footer className="shrink-0 border-t border-slate-200 bg-panel/95 px-5 py-4 backdrop-blur sm:px-6">
           <div className={`flex flex-col gap-3 sm:flex-row sm:items-center ${footerContent ? "sm:justify-between" : "sm:justify-end"}`}>
             {footerContent ? <div className="min-w-0 text-sm leading-6 text-slate-500">{footerContent}</div> : null}
             <div className="flex shrink-0 flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={requestCancel}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+                className="rounded-xl border border-slate-300 bg-panel px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
                 title="Close this panel without saving the current draft"
               >
                 {cancelLabel}
@@ -183,7 +178,7 @@ export function BuilderDrawer({
                   type="button"
                   onClick={requestSave}
                   disabled={disableSave || closing}
-                  className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
                   title={saveLabel}
                 >
                   {saveLabel}

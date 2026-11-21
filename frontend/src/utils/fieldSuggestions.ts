@@ -1,8 +1,6 @@
 import type { ComparisonDataSource, ComparisonField, DataSourcePreview, FieldType } from "../types/validation.types";
 
-function makeId(prefix: string) {
-  return `${prefix}-${crypto.randomUUID()}`;
-}
+import { makeId } from "./ids";
 
 export function normalizedFieldKey(value: string) {
   return value.toLowerCase().match(/[a-z0-9]+/g)?.join(" ") ?? "";
@@ -101,8 +99,22 @@ function isMeaningfulHeader(label: string) {
 export function fieldTypeForLabel(label: string): FieldType {
   const key = normalizedFieldKey(label);
   if (/\b(cost|price|amount|total|value|rate)\b/.test(key)) return "currency";
-  if (/\b(qty|quantity|count|number|no|percent|percentage)\b/.test(key)) return "number";
+  // "number"/"no" are left out on purpose: "Item No." is an identifier, not a quantity.
+  if (/\b(qty|quantity|count|percent|percentage)\b/.test(key)) return "number";
   if (/\b(date|time|deadline|created|updated)\b/.test(key)) return "date";
+  return "text";
+}
+
+const NUMERIC_VALUE = /^-?[\d,]*\.?\d+$/;
+
+/** Header words decide currency/date; otherwise mostly-numeric sample values make it a number field. */
+function inferFieldType(label: string, samples: unknown[]): FieldType {
+  const byLabel = fieldTypeForLabel(label);
+  if (byLabel !== "text") return byLabel;
+  const values = samples.map((value) => String(value ?? "").trim()).filter(Boolean);
+  if (values.length >= 2 && values.filter((value) => NUMERIC_VALUE.test(value.replace(/[₱$€£\s]/g, ""))).length / values.length >= 0.8) {
+    return /\b(standard|extended|subtotal|cost|price)\b/.test(normalizedFieldKey(label)) ? "currency" : "number";
+  }
   return "text";
 }
 
@@ -134,19 +146,23 @@ export function buildSuggestedFieldsForSource(
         return null;
       }
       seenKeys.add(key);
+      const samples = preview.rows.filter((row) => row.selected && !row.ignored).slice(0, 20).map((row) => row.cells[column.header_label] ?? row.cells[column.letter]);
       const suggestedField: ComparisonField = {
         id: makeId("field"),
         data_source_id: source.id,
         field_name: fieldName,
-        field_type: fieldTypeForLabel(fieldName),
+        field_type: inferFieldType(fieldName, samples),
         column_letter: column.letter,
         original_header_label: column.header_label,
         custom_display_name: fieldName,
-        required: true,
+        // Not every column must be filled (e.g. Remarks); users opt in per field.
+        required: false,
         normalization: { case_insensitive: true, trim_whitespace: true, collapse_whitespace: true },
       };
       return { field: suggestedField, hasMatch };
     })
     .filter((item): item is { field: ComparisonField; hasMatch: boolean } => Boolean(item))
+    // Columns that also exist in another source come first, as the chooser copy promises.
+    .sort((left, right) => Number(right.hasMatch) - Number(left.hasMatch))
     .map((item) => item.field);
 }

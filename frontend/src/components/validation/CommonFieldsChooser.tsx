@@ -1,7 +1,8 @@
-import { Search, Wand2, X } from "lucide-react";
+import { Wand2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useWorkflow } from "../../features/files/WorkflowContext";
-import type { ComparisonDataSource, ComparisonField } from "../../types/validation.types";
+import { ModalDialog } from "../common/ModalDialog";
+import type { ComparisonField } from "../../types/validation.types";
 import { buildSuggestedFieldsForSource, normalizedFieldKey } from "../../utils/fieldSuggestions";
 
 interface FieldChoice {
@@ -9,8 +10,8 @@ interface FieldChoice {
   inferredField: ComparisonField;
 }
 
-const primaryButtonClass = "inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300";
-const secondaryButtonClass = "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-50";
+const primaryButtonClass = "inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300";
+const secondaryButtonClass = "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-panel px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function CommonFieldsChooser() {
   const { dataSources, sourcePreviews, updateDataSource } = useWorkflow();
@@ -50,10 +51,12 @@ export function CommonFieldsChooser() {
     return () => window.removeEventListener("clario:suggest-fields", openFromCustomEvent);
   }, [dataSources]);
 
-  useEffect(() => {
-    if (!targetSourceId) return;
-    setSelectedKeys(selectableKeys);
-  }, [targetSourceId, selectableKeys.join("|")]);
+  // Pre-select every suggestion once per opening, not whenever the choice list changes (that wiped user unchecks).
+  const [initializedFor, setInitializedFor] = useState<string | null>(null);
+  if (targetSourceId !== initializedFor) {
+    setInitializedFor(targetSourceId);
+    if (targetSourceId) setSelectedKeys(selectableKeys);
+  }
 
   if (!targetSource) return null;
 
@@ -69,14 +72,12 @@ export function CommonFieldsChooser() {
   };
 
   return (
-    <div data-common-field-chooser className="fixed inset-0 z-[70] flex items-center justify-center px-4">
-      <button aria-label="Close common field chooser" className="absolute inset-0 bg-slate-950/35 backdrop-blur-[2px]" onClick={close} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="common-fields-title"
-        className="relative w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl animate-[builder-dialog-in_180ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
-      >
+    <ModalDialog
+      dataAttribute="data-common-field-chooser"
+      labelledBy="common-fields-title"
+      onClose={close}
+      className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-panel p-6 shadow-2xl animate-[builder-dialog-in_180ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
+    >
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
@@ -116,7 +117,7 @@ export function CommonFieldsChooser() {
                   return (
                     <label
                       key={choice.key}
-                      className={`flex cursor-pointer gap-3 rounded-2xl border p-4 text-sm transition ${checked ? "border-emerald-200 bg-emerald-50 hover:border-blue-300 hover:bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                      className={`flex cursor-pointer gap-3 rounded-2xl border p-4 text-sm transition ${checked ? "border-emerald-200 bg-emerald-50 hover:border-blue-300 hover:bg-blue-50" : "border-slate-200 bg-panel hover:bg-slate-50"}`}
                       title={`Add ${field.field_name}`}
                     >
                       <input
@@ -128,7 +129,7 @@ export function CommonFieldsChooser() {
                             ? [...new Set([...current, choice.key])]
                             : current.filter((key) => key !== choice.key));
                         }}
-                        className="mt-1 size-4 rounded border-slate-300 accent-emerald-700"
+                        className="mt-1 size-4 rounded border-slate-300 accent-brand"
                       />
                       <span className="min-w-0 flex-1">
                         <span className="block font-semibold text-slate-950">
@@ -151,8 +152,7 @@ export function CommonFieldsChooser() {
         )}
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Search className="size-4" />
+          <div className="flex items-center gap-2 text-sm text-slate-600" aria-live="polite">
             {selectedFields.length} field{selectedFields.length === 1 ? "" : "s"} selected
           </div>
           <div className="flex flex-wrap justify-end gap-2">
@@ -162,7 +162,6 @@ export function CommonFieldsChooser() {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 }
