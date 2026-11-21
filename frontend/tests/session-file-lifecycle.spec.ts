@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+// No spec may depend on a live backend: every request, including the health check, is mocked.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/health", (route) => route.fulfill({ json: { status: "ok" } }));
+  await page.route("**/setup/legacy-data", (route) => route.fulfill({ json: { available: false, session_count: 0 } }));
+});
+
 const sheet = {
   name: "Sheet1",
   row_count: 2,
@@ -112,29 +118,29 @@ test("uploading a file after reopening a session persists it and exposes it to t
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Continue setup" }).first().click();
+  await page.getByRole("button", { name: "Open session" }).first().click();
   await expect(page).toHaveURL(/\/mapping/);
   await expect(page.getByRole("heading", { name: "Confirm row setup" })).toBeVisible();
   await expect(page.getByRole("heading", { name: `Source 1 - ${existingFile.name}` })).toHaveCount(1);
   await page.getByRole("link", { name: "Upload files" }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: newFile.name, mimeType: "text/csv", buffer: Buffer.from("Item,Quantity\nPen,5\n") });
-  await page.getByRole("button", { name: "Continue to validation" }).click();
+  await page.getByRole("button", { name: "Continue to row setup" }).click();
   await expect(page).toHaveURL(/\/mapping/);
   await expect(page.getByRole("heading", { name: "Confirm row setup" })).toBeVisible();
   await expect(page.getByRole("heading", { name: `Source 1 - ${existingFile.name}` })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: `Source 2 - ${newFile.name}` })).toHaveCount(1);
-  await page.getByRole("button", { name: "Confirm all previewed" }).first().click();
+  await page.getByRole("button", { name: "Confirm high-confidence" }).first().click();
   await page.getByRole("button", { name: "Continue to comparison builder" }).first().click();
   await expect(page).toHaveURL(/\/builder/);
   await expect(page.getByRole("heading", { name: `Source 1 - ${existingFile.name}` })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: `Source 2 - ${newFile.name}` })).toHaveCount(1);
 
   await page.getByRole("link", { name: "Upload files" }).click();
-  await page.getByRole("button", { name: "Continue to validation" }).click();
+  await page.getByRole("button", { name: "Continue to row setup" }).click();
   await expect(page).toHaveURL(/\/mapping/);
   await expect(page.getByRole("heading", { name: `Source 1 - ${existingFile.name}` })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: `Source 2 - ${newFile.name}` })).toHaveCount(1);
-  await page.getByRole("button", { name: "Confirm all previewed" }).first().click();
+  await page.getByRole("button", { name: "Confirm high-confidence" }).first().click();
   await page.getByRole("button", { name: "Continue to comparison builder" }).first().click();
   await expect(page).toHaveURL(/\/builder/);
   await expect(page.getByRole("heading", { name: `Source 1 - ${existingFile.name}` })).toHaveCount(1);
@@ -145,7 +151,7 @@ test("uploading a file after reopening a session persists it and exposes it to t
   await expect(page).toHaveURL(/\/mapping/);
   await expect(page.getByRole("heading", { name: `Source 1 - ${existingFile.name}` })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: `Source 2 - ${newFile.name}` })).toHaveCount(1);
-  await page.getByRole("button", { name: "Confirm all previewed" }).first().click();
+  await page.getByRole("button", { name: "Confirm high-confidence" }).first().click();
   await page.getByRole("button", { name: "Continue to comparison builder" }).first().click();
   await expect(page).toHaveURL(/\/builder/);
   await expect(page.getByRole("heading", { name: `Source 1 - ${existingFile.name}` })).toHaveCount(1);

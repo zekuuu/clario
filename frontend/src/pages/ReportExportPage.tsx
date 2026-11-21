@@ -10,12 +10,15 @@ import { exportPdf, openPdfExternally, openReportFolderExternally, savedReportIn
 
 interface ExportedReportState {
   filename: string;
-  savedPath: string | null;
 }
 
-const primaryActionClass = "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:active:scale-100";
-const secondaryActionClass = "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100";
-const reportPanelClass = "mx-auto mt-8 w-full max-w-4xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm";
+function reportKey(report: ExportedReportState) {
+  return report.filename;
+}
+
+const primaryActionClass = "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:active:scale-100";
+const secondaryActionClass = "inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-300 bg-panel px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100";
+const reportPanelClass = "mx-auto mt-8 w-full max-w-4xl rounded-3xl border border-slate-200 bg-panel p-6 shadow-sm";
 
 function ExportMetric({ label, value }: { label: string; value: number }) {
   return (
@@ -29,7 +32,7 @@ function ExportMetric({ label, value }: { label: string; value: number }) {
 function EmptyReportStep({ number, title, description }: { number: number; title: string; description: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">Step {number}</p>
+      <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Step {number}</p>
       <p className="mt-1 text-sm font-semibold text-slate-950">{title}</p>
       <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
     </div>
@@ -39,8 +42,8 @@ function EmptyReportStep({ number, title, description }: { number: number; title
 export function ReportExportPage() {
   const { result } = useWorkflow();
   const [busy, setBusy] = useState(false);
-  const [openBusy, setOpenBusy] = useState(false);
-  const [folderBusy, setFolderBusy] = useState(false);
+  // Busy state is per report (keyed by path) so one click doesn't spin every row.
+  const [busyAction, setBusyAction] = useState<{ key: string; kind: "open" | "folder" } | null>(null);
   const [exportedReports, setExportedReports] = useState<ExportedReportState[]>([]);
   const { showToast } = useToast();
 
@@ -53,7 +56,7 @@ export function ReportExportPage() {
     let active = true;
     void savedReportInfo(result.id)
       .then((reports) => {
-        if (active) setExportedReports(reports.map((report) => ({ filename: report.filename, savedPath: report.savedPath })));
+        if (active) setExportedReports(reports.map((report) => ({ filename: report.filename })));
       })
       .catch(() => {
         if (active) setExportedReports([]);
@@ -68,7 +71,7 @@ export function ReportExportPage() {
     return (
       <div>
         <PageHeader
-          eyebrow="Step 4 of 4"
+          eyebrow="Step 5 of 5"
           title="Export local report"
           description="A PDF report can only be generated after validation has finished."
         />
@@ -120,9 +123,8 @@ export function ReportExportPage() {
 
       const nextReport: ExportedReportState = {
         filename: report.filename,
-        savedPath: report.savedPath,
       };
-      setExportedReports((current) => [nextReport, ...current.filter((item) => item.savedPath !== nextReport.savedPath)]);
+      setExportedReports((current) => [nextReport, ...current.filter((item) => item.filename !== nextReport.filename)]);
       showToast("PDF generated.", "success");
     } catch (cause) {
       showToast(cause instanceof Error ? cause.message : "Could not create report.", "error");
@@ -132,33 +134,33 @@ export function ReportExportPage() {
   };
 
   const openReport = async (report: ExportedReportState) => {
-    setOpenBusy(true);
+    setBusyAction({ key: reportKey(report), kind: "open" });
     try {
-      await openPdfExternally(result.id, report.savedPath);
+      await openPdfExternally(result.id, report.filename);
       showToast("Opened the PDF using your default PDF viewer.", "success");
     } catch (cause) {
       showToast(cause instanceof Error ? cause.message : "Could not open the PDF in an external viewer.", "error");
     } finally {
-      setOpenBusy(false);
+      setBusyAction(null);
     }
   };
 
   const openReportFolder = async (report: ExportedReportState) => {
-    setFolderBusy(true);
+    setBusyAction({ key: reportKey(report), kind: "folder" });
     try {
-      await openReportFolderExternally(result.id, report.savedPath);
+      await openReportFolderExternally(result.id, report.filename);
       showToast("Opened the report folder.", "success");
     } catch (cause) {
       showToast(cause instanceof Error ? cause.message : "Could not open the report folder.", "error");
     } finally {
-      setFolderBusy(false);
+      setBusyAction(null);
     }
   };
 
   return (
     <div>
       <PageHeader
-        eyebrow="Step 4 of 4"
+        eyebrow="Step 5 of 5"
         title="Export local report"
         description="Create a PDF summary from the completed validation result. The report is generated locally and validation will not be re-run."
       />
@@ -192,22 +194,25 @@ export function ReportExportPage() {
 
         {exportedReports.length ? (
           <div className="mt-6 space-y-3">
-            {exportedReports.map((report) => (
-              <div key={`${report.filename}-${report.savedPath}`} className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            {exportedReports.map((report) => {
+              const rowBusy = busyAction?.key === reportKey(report) ? busyAction.kind : null;
+              return (
+              <div key={reportKey(report)} className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-2">
                   <CheckCircle2 className="size-5 shrink-0 text-emerald-700" />
                   <p className="min-w-0 break-all text-sm font-semibold text-slate-950">{report.filename}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Button type="button" loading={folderBusy} onClick={() => void openReportFolder(report)} disabled={folderBusy || openBusy} variant="outline" className="grid size-11 place-items-center rounded-xl border border-slate-300 bg-white p-0 text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600" aria-label={`Open folder containing ${report.filename}`} title="Open report folder">
-                    <FolderOpen className="size-5" />
+                  <Button type="button" loading={rowBusy === "folder"} onClick={() => void openReportFolder(report)} disabled={Boolean(busyAction)} variant="outline" className={secondaryActionClass} title={`Show ${report.filename} in its folder`}>
+                    <FolderOpen aria-hidden="true" className="size-4" /> Show in folder
                   </Button>
-                  <Button type="button" loading={openBusy} onClick={() => void openReport(report)} disabled={openBusy || folderBusy} variant="outline" className={secondaryActionClass}>
-                  <ExternalLink className="size-4" /> {openBusy ? "Opening..." : "Open"}
+                  <Button type="button" loading={rowBusy === "open"} onClick={() => void openReport(report)} disabled={Boolean(busyAction)} variant="outline" className={secondaryActionClass}>
+                    <ExternalLink aria-hidden="true" className="size-4" /> {rowBusy === "open" ? "Opening..." : "Open"}
                   </Button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500">

@@ -4,18 +4,16 @@ import { apiBlobWithHeaders, apiRequest } from "./apiClient";
 export interface ExportedPdfReport {
   blob: Blob;
   filename: string;
-  savedPath: string | null;
 }
 
 export interface ReportInfo {
   filename: string;
-  savedPath: string;
   createdAt: string;
 }
 
 export interface OpenPdfResponse {
   status: "opened";
-  path: string;
+  filename: string;
 }
 
 function filenameFromDisposition(disposition: string | null) {
@@ -37,40 +35,22 @@ export async function exportPdf(result: ValidationResult): Promise<ExportedPdfRe
   return {
     blob: response.blob,
     filename: headerFilename ?? filenameFromDisposition(response.headers.get("Content-Disposition")) ?? fallbackReportFileName(result.project_name),
-    savedPath: response.headers.get("X-Report-Path"),
-  };
-}
-
-export async function latestReportInfo(resultId: string): Promise<ReportInfo> {
-  const response = await apiRequest<{ filename: string; saved_path: string; created_at: string }>(`/reports/${encodeURIComponent(resultId)}/latest`);
-  return {
-    filename: response.filename,
-    savedPath: response.saved_path,
-    createdAt: response.created_at,
   };
 }
 
 export async function savedReportInfo(resultId: string): Promise<ReportInfo[]> {
-  const response = await apiRequest<Array<{ filename: string; saved_path: string; created_at: string }>>(`/reports/${encodeURIComponent(resultId)}/saved`);
-  return response.map((report) => ({
-    filename: report.filename,
-    savedPath: report.saved_path,
-    createdAt: report.created_at,
-  }));
+  const response = await apiRequest<Array<{ filename: string; created_at: string }>>(`/reports/${encodeURIComponent(resultId)}/saved`);
+  return response.map((report) => ({ filename: report.filename, createdAt: report.created_at }));
 }
 
-export async function openPdfExternally(resultId: string, savedPath?: string | null): Promise<OpenPdfResponse> {
-  return apiRequest<OpenPdfResponse>(`/reports/${encodeURIComponent(resultId)}/open`, {
+/** Reports are addressed by bare filename; the backend resolves it inside the session's reports folder. */
+function postReportAction(resultId: string, action: "open" | "folder", filename?: string | null) {
+  return apiRequest<OpenPdfResponse>(`/reports/${encodeURIComponent(resultId)}/${action}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: savedPath ?? null }),
+    body: JSON.stringify({ filename: filename ?? null }),
   });
 }
 
-export async function openReportFolderExternally(resultId: string, savedPath?: string | null): Promise<OpenPdfResponse> {
-  return apiRequest<OpenPdfResponse>(`/reports/${encodeURIComponent(resultId)}/folder`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: savedPath ?? null }),
-  });
-}
+export const openPdfExternally = (resultId: string, filename?: string | null) => postReportAction(resultId, "open", filename);
+export const openReportFolderExternally = (resultId: string, filename?: string | null) => postReportAction(resultId, "folder", filename);

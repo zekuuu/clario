@@ -5,7 +5,7 @@ export type PresetSelection = PresetType | "";
 export type RowSelectionMode = "auto_detected" | "manual_include" | "manual_exclude";
 export type RuleType = "compare_values" | "formula_check" | "required_field_check" | "duplicate_check";
 export type MatchStrategy = "by_row_order" | "by_item_number_field" | "by_exact_text_field" | "by_multiple_fields" | "manual_placeholder";
-export type RuleStrictness = "exact" | "normalized_exact" | "numeric_tolerance" | "currency_tolerance";
+export type RuleStrictness = "exact" | "normalized_exact" | "similar_text" | "numeric_tolerance" | "currency_tolerance";
 
 export interface NormalizationSettings {
   case_insensitive: boolean;

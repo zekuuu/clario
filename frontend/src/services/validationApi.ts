@@ -8,6 +8,7 @@ export interface ValidationPayload {
   preset: PresetType;
   data_sources: ComparisonDataSource[];
   rules: ComparisonRule[];
+  session_id?: string | null;
   source_previews?: Record<string, DataSourcePreview | undefined>;
 }
 
@@ -33,6 +34,7 @@ export const runValidation = (payload: ValidationPayload) => {
       preset: payload.preset,
       data_sources: payload.data_sources,
       rules: payload.rules,
+      session_id: payload.session_id ?? null,
     }),
   });
 };

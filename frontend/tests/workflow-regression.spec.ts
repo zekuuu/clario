@@ -2,6 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 import type { ComparisonDataSource, DataSourcePreview, ValidationResult } from "../src/types/validation.types";
 import type { UploadedFile } from "../src/types/file.types";
 
+// No spec may depend on a live backend: every request, including the health check, is mocked.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/health", (route) => route.fulfill({ json: { status: "ok" } }));
+  await page.route("**/setup/legacy-data", (route) => route.fulfill({ json: { available: false, session_count: 0 } }));
+});
+
 const uploadedFiles: UploadedFile[] = [
   {
     id: "file-reference",
@@ -156,18 +162,18 @@ test("main comparison workflow stays usable", async ({ page }) => {
 
   await expect(page.getByText(uploadedFiles[0].name)).toBeVisible();
   await expect(page.getByText(uploadedFiles[1].name)).toBeVisible();
-  await page.getByRole("button", { name: "Continue to validation" }).click();
+  await page.getByRole("button", { name: "Continue to row setup" }).click();
 
   await expect(page.getByRole("heading", { name: "Confirm row setup" })).toBeVisible();
   await expect(page.getByText("High confidence").first()).toBeVisible();
   await expect(page.getByText("Selected data").first()).toBeVisible();
-  await page.getByRole("button", { name: "Confirm all previewed" }).first().click();
+  await page.getByRole("button", { name: "Confirm high-confidence" }).first().click();
   await expect(page.getByRole("button", { name: "Continue to comparison builder" }).first()).toBeEnabled();
   await page.getByRole("button", { name: "Continue to comparison builder" }).first().click();
 
   await expect(page.getByRole("heading", { name: "Comparison builder" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Go to step 1: Sources" })).toBeVisible();
-  await page.getByRole("button", { name: "Go to step 3: Fields" }).click();
+  await expect(page.getByRole("button", { name: /^Sources/ })).toBeVisible();
+  await page.getByRole("button", { name: /^Fields/ }).click();
 
   await expect(page.getByRole("button", { name: "Add suggested fields" })).toHaveCount(2);
   for (let index = 0; index < uploadedFiles.length; index += 1) {
@@ -176,9 +182,9 @@ test("main comparison workflow stays usable", async ({ page }) => {
     await expect(page.getByText("Item Description").first()).toBeVisible();
     await page.getByRole("button", { name: "Add selected fields" }).click();
   }
-  await expect(page.getByText("2 mapped field(s)")).toHaveCount(2);
+  await expect(page.getByText("2 mapped fields")).toHaveCount(2);
 
-  await page.getByRole("button", { name: "Go to step 4: Rules" }).click();
+  await page.getByRole("button", { name: /^Rules/ }).click();
   await expect(page.getByRole("button", { name: "Build suggested rules" })).toBeVisible();
   await page.getByRole("button", { name: "Build suggested rules" }).click();
   await expect(page.getByRole("dialog", { name: "Choose rules to add" })).toBeVisible();
@@ -186,13 +192,13 @@ test("main comparison workflow stays usable", async ({ page }) => {
   await page.getByRole("button", { name: "Add selected rules" }).click();
   await expect(page.getByText("Item Description comparison")).toBeVisible();
 
-  await page.getByRole("button", { name: "Go to step 5: Review & Run" }).click();
+  await page.getByRole("button", { name: /^Review & Run/ }).click();
   await expect(page.getByText("Setup is ready to validate.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Run validation" })).toBeEnabled();
   await page.getByRole("button", { name: "Run validation" }).click();
 
   await expect(page.getByRole("heading", { name: "Review rule-based discrepancies" })).toBeVisible();
-  await expect(page.getByText("0 discrepancy(s) across 4 selected rows")).toBeVisible();
+  await expect(page.getByText("0 discrepancies across 4 selected rows")).toBeVisible();
   await expect(page.getByRole("main").getByRole("link", { name: "Export report" })).toBeVisible();
 });
 
@@ -241,8 +247,8 @@ test("session resume continues from restored files without reselecting them", as
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Continue setup" }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Continue setup" }).first().click();
+  await expect(page.getByRole("button", { name: "Open session" }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Open session" }).first().click();
   await expect(page).toHaveURL(/\/mapping/);
 
   await page.getByRole("link", { name: "Upload files" }).click();
@@ -250,7 +256,7 @@ test("session resume continues from restored files without reselecting them", as
   await expect(page.getByRole("heading", { name: "Choose comparison files" })).toBeVisible();
   await expect(page.getByText(uploadedFiles[0].name).first()).toBeVisible();
   await expect(page.getByText(uploadedFiles[1].name).first()).toBeVisible();
-  await page.getByRole("button", { name: "Continue to validation" }).click();
+  await page.getByRole("button", { name: "Continue to row setup" }).click();
   await expect(page).toHaveURL(/\/mapping/);
   await expect(page.getByRole("heading", { name: "Confirm row setup" })).toBeVisible();
 });
@@ -340,7 +346,7 @@ test("session draft keeps previously uploaded files when adding a new local file
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Continue setup" }).first().click();
+  await page.getByRole("button", { name: "Open session" }).first().click();
   await expect(page).toHaveURL(/\/mapping/);
 
   await page.getByRole("link", { name: "Upload files" }).click();
@@ -353,7 +359,7 @@ test("session draft keeps previously uploaded files when adding a new local file
   ]);
 
   await expect(page.getByText(newUploadedFile.name)).toBeVisible();
-  await page.getByRole("button", { name: "Continue to validation" }).click();
+  await page.getByRole("button", { name: "Continue to row setup" }).click();
 
   await expect(page).toHaveURL(/\/mapping/);
   expect(requests).toEqual(["upload", `persist:${newUploadedFile.id}`]);

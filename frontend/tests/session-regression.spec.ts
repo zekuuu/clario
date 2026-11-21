@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+// No spec may depend on a live backend: every request, including the health check, is mocked.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/health", (route) => route.fulfill({ json: { status: "ok" } }));
+  await page.route("**/setup/legacy-data", (route) => route.fulfill({ json: { available: false, session_count: 0 } }));
+});
+
 const savedSession = {
   id: "session-restore",
   project_name: "Saved draft",
@@ -46,8 +52,8 @@ test("continuing a saved session keeps its id and does not create a duplicate", 
   });
 
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Continue setup" }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Continue setup" }).first().click();
+  await expect(page.getByRole("button", { name: "Open session" }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Open session" }).first().click();
 
   await expect(page).toHaveURL(/\/mapping/);
   expect(draftCalls).toBe(0);
