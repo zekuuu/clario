@@ -33,10 +33,10 @@ interface DragSelection {
   originRowNumber: number;
 }
 
-const toolbarButtonClass = "inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-normal text-slate-950 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-50";
-const rangeInputClass = "h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-center text-xs font-semibold text-slate-800 outline-none placeholder:font-medium placeholder:text-slate-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100";
+const toolbarButtonClass = "inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-panel px-3 text-sm font-normal text-slate-950 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-50";
+const rangeInputClass = "h-8 w-20 rounded-lg border border-slate-200 bg-panel px-2 text-center text-xs font-semibold text-slate-800 outline-none placeholder:font-medium placeholder:text-slate-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100";
 const menuItemClass = "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:bg-slate-50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50";
-const menuSectionClass = "px-3 pt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400";
+const menuSectionClass = "px-3 pt-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-500";
 const rowCellClass = "border-b border-slate-100 p-2.5 align-middle text-sm font-normal leading-5 text-slate-950";
 const summaryTerms = ["grand total", "subtotal", "total"];
 const sectionTerms = ["lot", "section", "category"];
@@ -310,8 +310,15 @@ export function RowSelectionTable({ headers, rows, lockedRowNumbers = [], header
     autoScrollFrameRef.current = window.requestAnimationFrame(scrollLoop);
   };
 
+  // The window listeners live for one drag; they read the latest handlers through a ref instead of
+  // re-subscribing on every mousemove (dragSelection changes each move).
+  const dragHandlersRef = useRef({ applyBoxSelection, startAutoScroll, stopAutoScroll, onToggleRow });
+  dragHandlersRef.current = { applyBoxSelection, startAutoScroll, stopAutoScroll, onToggleRow };
+  const isDragging = dragSelection !== null;
+
   useEffect(() => {
-    if (!dragSelection) return undefined;
+    if (!isDragging) return undefined;
+    const handlers = () => dragHandlersRef.current;
 
     const handleMouseMove = (event: globalThis.MouseEvent) => {
       const current = dragSelectionRef.current;
@@ -323,15 +330,15 @@ export function RowSelectionTable({ headers, rows, lockedRowNumbers = [], header
       dragSelectionRef.current = nextSelection;
       setDragSelection(nextSelection);
       if (nextSelection.hasMoved) {
-        applyBoxSelection(nextSelection);
-        startAutoScroll();
+        handlers().applyBoxSelection(nextSelection);
+        handlers().startAutoScroll();
       }
     };
 
     const handleMouseUp = () => {
       const current = dragSelectionRef.current;
-      if (current && !current.hasMoved) onToggleRow(current.originRowNumber);
-      stopAutoScroll();
+      if (current && !current.hasMoved) handlers().onToggleRow(current.originRowNumber);
+      handlers().stopAutoScroll();
       dragSelectionRef.current = null;
       lastPointerRef.current = null;
       dragWarningSnapshotRef.current = [];
@@ -346,7 +353,18 @@ export function RowSelectionTable({ headers, rows, lockedRowNumbers = [], header
       window.removeEventListener("mouseup", handleMouseUp);
       window.removeEventListener("blur", handleMouseUp);
     };
-  }, [dragSelection, onToggleRow]);
+  }, [isDragging]);
+
+  useEffect(() => {
+    if (!moreActionsOpen) return undefined;
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setMoreActionsOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape, true);
+    return () => document.removeEventListener("keydown", closeOnEscape, true);
+  }, [moreActionsOpen]);
 
   const handleRowMouseDown = (event: MouseEvent<HTMLTableRowElement>, row: PreviewRow) => {
     if (event.button !== 0 || lockedRows.has(row.row_number)) return;
@@ -375,8 +393,8 @@ export function RowSelectionTable({ headers, rows, lockedRowNumbers = [], header
   const displayedRowWarnings = dragSelection ? dragWarningSnapshotRef.current : selectedRowWarnings;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white font-sans text-slate-900 subpixel-antialiased [text-rendering:auto]">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-2xl border-b border-slate-200 bg-white p-3 text-xs text-slate-700">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-panel font-sans text-slate-900 subpixel-antialiased [text-rendering:auto]">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-2xl border-b border-slate-200 bg-panel p-3 text-xs text-slate-700">
         <div className="min-w-0">
           <p className="text-sm font-semibold leading-5 text-slate-950">{selectedRows.length} of {selectableRowNumbers.length} row{selectableRowNumbers.length === 1 ? "" : "s"} included</p>
         </div>
@@ -401,20 +419,21 @@ export function RowSelectionTable({ headers, rows, lockedRowNumbers = [], header
             </button>
             {moreActionsOpen ? (
               <div
-                role="menu"
-                className="absolute right-0 top-full z-30 mt-2 w-80 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-200/70"
+                role="group"
+                aria-label="More row actions"
+                className="absolute right-0 top-full z-30 mt-2 w-80 rounded-2xl border border-slate-200 bg-panel p-2 shadow-xl shadow-slate-200/70"
               >
                 <p className={menuSectionClass}>Quick actions</p>
-                <button role="menuitem" type="button" onClick={() => runMoreAction(() => onSelectRows(selectableRows.filter((row) => !row.selected).map((row) => row.row_number)))} className={menuItemClass} title="Invert which preview rows are included">
+                <button type="button" onClick={() => runMoreAction(() => onSelectRows(selectableRows.filter((row) => !row.selected).map((row) => row.row_number)))} className={menuItemClass} title="Invert which preview rows are included">
                   <RotateCcw className="size-3.5" /> Invert selection
                 </button>
-                <button role="menuitem" type="button" onClick={() => runMoreAction(() => onIgnoreRows(selectedRows))} disabled={!selectedRows.length} className={menuItemClass} title="Move the currently selected rows to excluded rows so validation skips them">
+                <button type="button" onClick={() => runMoreAction(() => onIgnoreRows(selectedRows))} disabled={!selectedRows.length} className={menuItemClass} title="Move the currently selected rows to excluded rows so validation skips them">
                   <Ban className="size-3.5" /> Exclude selected
                 </button>
-                <button role="menuitem" type="button" onClick={() => runMoreAction(() => onMarkDataRows(selectedRows))} disabled={!selectedRows.length} className={menuItemClass} title="Move selected rows back into included data rows">
+                <button type="button" onClick={() => runMoreAction(() => onMarkDataRows(selectedRows))} disabled={!selectedRows.length} className={menuItemClass} title="Move selected rows back into included data rows">
                   <CheckSquare className="size-3.5" /> Include selected
                 </button>
-                <button role="menuitem" type="button" onClick={() => runMoreAction(() => onIgnoreRows(selectedRowWarnings.map((warning) => warning.rowNumber)))} disabled={!selectedRowWarnings.length} className={menuItemClass} title="Exclude selected rows that look blank, header-like, summary-like, or non-data">
+                <button type="button" onClick={() => runMoreAction(() => onIgnoreRows(selectedRowWarnings.map((warning) => warning.rowNumber)))} disabled={!selectedRowWarnings.length} className={menuItemClass} title="Exclude selected rows that look blank, header-like, summary-like, or non-data">
                   <AlertTriangle className="size-3.5" /> Exclude review rows
                 </button>
                 <div className="my-1 h-px bg-slate-100" />
@@ -436,7 +455,7 @@ export function RowSelectionTable({ headers, rows, lockedRowNumbers = [], header
                       className={rangeInputClass}
                       title="Starting Excel row number, based on the Excel row column"
                     />
-                    <span className="text-slate-400">–</span>
+                    <span className="text-slate-500">–</span>
                     <label className="sr-only" htmlFor={rowRangeEndId}>End Excel row</label>
                     <input
                       id={rowRangeEndId}
@@ -454,27 +473,27 @@ export function RowSelectionTable({ headers, rows, lockedRowNumbers = [], header
                     />
                     <button
                       type="submit"
-                      className="inline-flex h-8 items-center rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white transition hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
+                      className="inline-flex h-8 items-center rounded-lg bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600"
                       title="Select all preview rows between the entered Excel row numbers"
                       aria-label="Select Excel row range"
                     >
                       Select
                     </button>
                   </div>
-                  {rangeError ? <p className="mt-2 rounded-lg bg-red-50 px-2 py-1 text-[11px] font-medium text-red-700" role="alert">{rangeError}</p> : null}
+                  {rangeError ? <p className="mt-2 rounded-lg bg-red-50 px-2 py-1 text-xs font-medium text-red-700" role="alert">{rangeError}</p> : null}
                 </form>
                 <div className="my-1 h-px bg-slate-100" />
                 <p className={menuSectionClass}>Clean rows</p>
-                <button role="menuitem" type="button" onClick={() => runMoreAction(() => onIgnoreRows(blankRows))} disabled={!blankRows.length} className={menuItemClass} title="Exclude blank preview rows so they are skipped during validation">
+                <button type="button" onClick={() => runMoreAction(() => onIgnoreRows(blankRows))} disabled={!blankRows.length} className={menuItemClass} title="Exclude blank preview rows so they are skipped during validation">
                   Exclude blank rows
                 </button>
-                <button role="menuitem" type="button" onClick={() => runMoreAction(() => onIgnoreRows(rowsMatchingSummaryTerm(selectableRows, "total")))} className={menuItemClass} title="Exclude rows where total appears like a summary label, not just inside notes">
+                <button type="button" onClick={() => runMoreAction(() => onIgnoreRows(rowsMatchingSummaryTerm(selectableRows, "total")))} className={menuItemClass} title="Exclude rows where total appears like a summary label, not just inside notes">
                   Exclude total summary rows
                 </button>
-                <button role="menuitem" type="button" onClick={() => runMoreAction(() => onIgnoreRows(rowsMatchingSummaryTerm(selectableRows, "subtotal")))} className={menuItemClass} title="Exclude rows where subtotal appears like a summary label">
+                <button type="button" onClick={() => runMoreAction(() => onIgnoreRows(rowsMatchingSummaryTerm(selectableRows, "subtotal")))} className={menuItemClass} title="Exclude rows where subtotal appears like a summary label">
                   Exclude subtotal rows
                 </button>
-                <button role="menuitem" type="button" onClick={() => runMoreAction(() => onIgnoreRows(rowsMatchingSummaryTerm(selectableRows, "grand total")))} className={menuItemClass} title="Exclude rows where grand total appears like a summary label">
+                <button type="button" onClick={() => runMoreAction(() => onIgnoreRows(rowsMatchingSummaryTerm(selectableRows, "grand total")))} className={menuItemClass} title="Exclude rows where grand total appears like a summary label">
                   Exclude grand total rows
                 </button>
               </div>
@@ -490,16 +509,16 @@ export function RowSelectionTable({ headers, rows, lockedRowNumbers = [], header
               <AlertTriangle className="size-3.5 shrink-0" /> {rowWarningSummary(displayedRowWarnings)}
             </span>
             {displayedRowWarnings.slice(0, 3).map((warning) => (
-              <span key={warning.rowNumber} className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">
+              <span key={warning.rowNumber} className="rounded-full bg-panel/80 px-2 py-0.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-200">
                 Row {warning.rowNumber}: {warning.reason}
               </span>
             ))}
-            <span className="text-[11px] font-medium text-amber-700">Warning only — you may continue if these rows are correct.</span>
+            <span className="text-xs font-medium text-amber-700">Warning only — you may continue if these rows are correct.</span>
           </div>
         </div>
       ) : null}
 
-      <div ref={scrollContainerRef} className="relative max-h-[520px] overflow-auto rounded-b-2xl bg-white">
+      <div ref={scrollContainerRef} className="relative max-h-[520px] overflow-auto rounded-b-2xl bg-panel">
         {selectionBoxStyle ? <div aria-hidden="true" className="pointer-events-none absolute z-20 rounded-2xl border border-emerald-500/70 bg-emerald-400/10 shadow-[0_0_0_1px_rgba(16,185,129,0.18),0_14px_35px_rgba(15,23,42,0.14)] backdrop-blur-[1px]" style={selectionBoxStyle} /> : null}
         <table className={`w-full min-w-[760px] border-separate border-spacing-0 text-left text-sm leading-5 ${dragSelection ? "select-none" : ""}`}>
           <thead className="sticky top-0 z-10 bg-slate-50 text-sm font-normal text-slate-950">
@@ -523,14 +542,11 @@ export function RowSelectionTable({ headers, rows, lockedRowNumbers = [], header
                     if (element) rowRefs.current.set(row.row_number, element);
                     else rowRefs.current.delete(row.row_number);
                   }}
-                  tabIndex={locked ? -1 : 0}
-                  role={locked ? undefined : "button"}
-                  aria-disabled={locked || undefined}
-                  aria-label={isHeaderRow ? `Excel row ${row.row_number} is the header row` : locked ? `Excel row ${row.row_number} is excluded by row setup` : `${row.selected ? "Unselect" : "Select"} Excel row ${row.row_number}`}
+                  // The row checkbox is the accessible control; a role="button" row would nest interactive content.
                   title={isHeaderRow ? "This row is the header row and is not selectable." : locked ? "This row is excluded by the first data row setting." : needsReview ? "This selected row may not be real data. Review it, or continue if it is correct." : "Click to toggle this row"}
                   onMouseDown={(event) => handleRowMouseDown(event, row)}
                   onKeyDown={(event) => handleRowKeyDown(event, row.row_number)}
-                  className={`group border-t border-slate-100 align-middle select-none transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-emerald-600 ${locked ? "cursor-not-allowed" : "cursor-pointer hover:bg-slate-100"} ${needsReview ? "bg-amber-50/70" : isHeaderRow ? "bg-sky-50/80" : row.selected ? "bg-emerald-50/35" : ""} ${locked && !isHeaderRow ? "opacity-90" : ""} ${row.ignored && !row.selected && !locked ? "opacity-90" : ""}`}
+                  className={`group border-t border-slate-100 align-middle select-none transition focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-600 ${locked ? "cursor-not-allowed" : "cursor-pointer hover:bg-slate-100"} ${needsReview ? "bg-amber-50/70" : isHeaderRow ? "bg-sky-50/80" : row.selected ? "bg-emerald-50/35" : ""} ${locked && !isHeaderRow ? "opacity-90" : ""} ${row.ignored && !row.selected && !locked ? "opacity-90" : ""}`}
                 >
                   <td className="border-b border-slate-100 p-0 align-middle">
                     <div className="flex min-h-11 items-center justify-center px-2.5 py-2">

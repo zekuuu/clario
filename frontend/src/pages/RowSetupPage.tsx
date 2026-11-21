@@ -1,301 +1,26 @@
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, FileSpreadsheet, LoaderCircle, Play, RefreshCw, Rows3 } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, FileSpreadsheet, LoaderCircle, Play, RefreshCw, Rows3 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SelectField } from "../components/forms/SelectField";
 import { PageHeader } from "../components/layout/PageHeader";
 import { useWorkflow } from "../features/files/WorkflowContext";
 import { previewDataSource } from "../services/fileApi";
-import type { UploadedFile } from "../types/file.types";
-import type { ComparisonDataSource, DataSourcePreview, PreviewRow } from "../types/validation.types";
+import type { ComparisonDataSource } from "../types/validation.types";
+import { applyRowBoundaries, clampRow, displayCell, rowBoundaryError, sanitizeAutoDetectedPreview, setupConfidence, sourceFile, sourceSheet, sourceSignature } from "../features/validation/rowSetupModel";
+import { confirmedStatus, rowAccentClass, rowBadge, rowCellClass, rowTone } from "../components/validation/rowSetup/rowPreviewStyles";
 
 interface RowSetupPageProps {
   onContinue: () => void;
 }
 
 type ReloadVisualState = "loading" | "reloaded";
+
 type RowInputDrafts = Record<string, { headerRow?: string; firstDataRow?: string }>;
-type SetupConfidenceTone = "high" | "medium" | "low";
 
-interface SetupConfidence {
-  label: string;
-  score: number;
-  tone: SetupConfidenceTone;
-  labelClassName: string;
-  barClassName: string;
-  detail: string;
-  checks: string[];
-}
+const primaryButtonClass = "inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:active:scale-100";
 
-const primaryButtonClass = "inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:active:scale-100";
-const secondaryButtonClass = "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100";
-const setupActionButtonClass = "inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-xs font-semibold transition active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100";
+const secondaryButtonClass = "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-panel px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100";
 
-function sourceSignature(source: ComparisonDataSource) {
-  return [source.file_id, source.sheet_name, source.header_row, source.first_data_row].join("|");
-}
-
-function sourceFile(source: ComparisonDataSource, files: UploadedFile[]) {
-  return files.find((file) => file.id === source.file_id) ?? files[0] ?? null;
-}
-
-function sourceSheet(source: ComparisonDataSource, files: UploadedFile[]) {
-  return sourceFile(source, files)?.sheets.find((sheet) => sheet.name === source.sheet_name) ?? null;
-}
-
-function clampRow(value: number) {
-  return Math.max(1, Number.isFinite(value) ? Math.trunc(value) : 1);
-}
-
-function rowBoundaryError(source: ComparisonDataSource, files: UploadedFile[], preview?: DataSourcePreview) {
-  const sheet = sourceSheet(source, files);
-  const rowCount = sheet?.row_count || preview?.total_rows || (preview?.rows.length ? Math.max(...preview.rows.map((row) => row.row_number)) : undefined);
-  if (source.header_row < 1) return "Header row must be 1 or higher.";
-  if (source.first_data_row <= source.header_row) return "First data row must be below the header row.";
-  if (!rowCount) return "";
-  if (source.header_row > rowCount) return `Header row ${source.header_row} is outside this worksheet. Choose a row between 1 and ${rowCount}.`;
-  if (source.first_data_row > rowCount) return `First data row ${source.first_data_row} is outside this worksheet. Choose a row between ${source.header_row + 1} and ${rowCount}.`;
-  return "";
-}
-
-function setupBoundaryRows(headerRow: number, firstDataRow: number) {
-  return Array.from({ length: Math.max(firstDataRow - 1, 0) }, (_, index) => index + 1).filter((rowNumber) => rowNumber !== headerRow);
-}
-
-function applyRowBoundaries(source: ComparisonDataSource, headerRow: number, firstDataRow: number): ComparisonDataSource {
-  const boundaryRows = setupBoundaryRows(headerRow, firstDataRow);
-  return {
-    ...source,
-    header_row: headerRow,
-    first_data_row: firstDataRow,
-    selected_row_numbers: [],
-    ignored_row_numbers: boundaryRows,
-    row_selection_mode: "auto_detected",
-  };
-}
-
-function displayCell(value: unknown) {
-  if (value === null || value === undefined || value === "") return "—";
-  return String(value);
-}
-
-function normalizePreviewText(value: unknown) {
-  if (value === null || value === undefined) return "";
-  return String(value).trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function meaningfulValues(row?: PreviewRow) {
-  if (!row) return [];
-  return Object.values(row.cells)
-    .map(normalizePreviewText)
-    .filter((value) => value && value !== "-" && value !== "—" && value !== "n/a");
-}
-
-function isRepeatedSectionRow(row: PreviewRow) {
-  const values = meaningfulValues(row);
-  return values.length >= 3 && new Set(values).size === 1;
-}
-
-function isHeaderLikeRow(row: PreviewRow, headers: string[]) {
-  const values = meaningfulValues(row);
-  if (!values.length) return false;
-  const normalizedHeaders = headers.map(normalizePreviewText).filter(Boolean);
-  const exactHits = values.filter((value) => normalizedHeaders.includes(value)).length;
-  if (exactHits >= Math.min(2, values.length, normalizedHeaders.length)) return true;
-  const rowText = values.join(" / ");
-  const wholeWordHits = normalizedHeaders.filter((header) => new RegExp(`(?<![a-z0-9])${escapeRegex(header)}(?![a-z0-9])`).test(rowText)).length;
-  return wholeWordHits >= Math.min(2, normalizedHeaders.length);
-}
-
-function sanitizeAutoDetectedPreview(preview: DataSourcePreview): DataSourcePreview {
-  const source = preview.data_source;
-  const headers = preview.columns.map((column) => column.header_label);
-  const ignoredRows = new Set(setupBoundaryRows(source.header_row, source.first_data_row));
-  const selectedRows = preview.rows
-    .filter((row) => {
-      if (row.row_number < source.first_data_row || ignoredRows.has(row.row_number)) return false;
-      if (isRepeatedSectionRow(row)) return false;
-      return meaningfulValues(row).length > 0 && !isHeaderLikeRow(row, headers);
-    })
-    .map((row) => row.row_number);
-  const selectedRowSet = new Set(selectedRows);
-  return {
-    ...preview,
-    data_source: {
-      ...source,
-      selected_row_numbers: selectedRows,
-      ignored_row_numbers: [...ignoredRows].sort((a, b) => a - b),
-      row_selection_mode: "auto_detected",
-    },
-    rows: preview.rows.map((row) => ({
-      ...row,
-      selected: selectedRowSet.has(row.row_number),
-      ignored: ignoredRows.has(row.row_number),
-    })),
-    detected_selected_rows: selectedRows,
-  };
-}
-
-function isVisualAutoExcludedRow(row: PreviewRow, source: ComparisonDataSource) {
-  return row.row_number >= source.first_data_row && isRepeatedSectionRow(row);
-}
-
-function rowTone(row: PreviewRow, source: ComparisonDataSource, selected: boolean) {
-  if (selected) return "row-preview-row row-preview-row--selected";
-  if (row.row_number === source.header_row) return "row-preview-row row-preview-row--header";
-  if (row.row_number === source.first_data_row) return "row-preview-row row-preview-row--first-data";
-  if (isVisualAutoExcludedRow(row, source)) return "row-preview-row row-preview-row--excluded";
-  if (row.selected) return "row-preview-row row-preview-row--included";
-  return "row-preview-row";
-}
-
-function rowBadge(row: PreviewRow, source: ComparisonDataSource) {
-  const className = "inline-flex w-fit max-w-full shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px]";
-  if (row.row_number === source.header_row) return <span className={`${className} bg-sky-100 font-semibold text-sky-700`}>Header row</span>;
-  if (row.row_number === source.first_data_row) return <span className={`${className} bg-amber-100 font-semibold text-amber-800`}>First data row</span>;
-  if (row.ignored || row.row_number < source.first_data_row || isVisualAutoExcludedRow(row, source)) return <span className={`${className} bg-slate-100 font-medium text-slate-500`}>Excluded row</span>;
-  if (row.selected) return <span className={`${className} bg-emerald-50 font-semibold text-emerald-700`}>Selected data</span>;
-  return <span className={`${className} bg-slate-100 font-medium text-slate-500`}>Preview row</span>;
-}
-
-function rowAccentClass(row: PreviewRow, source: ComparisonDataSource, selected: boolean) {
-  if (selected) return "row-preview-accent--selected";
-  if (row.row_number === source.header_row) return "border-l-sky-500";
-  if (row.row_number === source.first_data_row) return "border-l-amber-500";
-  if (isVisualAutoExcludedRow(row, source)) return "border-l-transparent";
-  if (row.selected) return "border-l-emerald-200";
-  return "border-l-transparent";
-}
-
-function rowCellClass(selected: boolean) {
-  return selected ? "row-preview-cell row-preview-cell--selected" : "row-preview-cell border-b border-slate-100";
-}
-
-function confidenceStyle(tone: SetupConfidenceTone) {
-  if (tone === "high") return { labelClassName: "text-emerald-700", barClassName: "bg-emerald-500" };
-  if (tone === "medium") return { labelClassName: "text-amber-700", barClassName: "bg-amber-500" };
-  return { labelClassName: "text-slate-600", barClassName: "bg-slate-400" };
-}
-
-function setupConfidence(source: ComparisonDataSource, files: UploadedFile[], preview: DataSourcePreview | undefined, stalePreview: boolean, boundaryError: string): SetupConfidence {
-  if (boundaryError) {
-    return {
-      label: "Low confidence",
-      score: 15,
-      tone: "low",
-      ...confidenceStyle("low"),
-      detail: "Fix the row numbers before confirming this source.",
-      checks: ["Header row and first data row must be inside the worksheet range."],
-    };
-  }
-
-  if (!preview) {
-    return {
-      label: "Not checked",
-      score: 0,
-      tone: "low",
-      ...confidenceStyle("low"),
-      detail: "Load the preview so Clario can inspect the detected rows.",
-      checks: ["Preview not loaded yet."],
-    };
-  }
-
-  if (stalePreview) {
-    return {
-      label: "Needs refresh",
-      score: 25,
-      tone: "low",
-      ...confidenceStyle("low"),
-      detail: "Refresh the preview before confirming this source.",
-      checks: ["Preview does not match the current row setup."],
-    };
-  }
-
-  const sheet = sourceSheet(source, files);
-  const headers = preview.columns.map((column) => column.header_label);
-  const headerRow = preview.rows.find((row) => row.row_number === source.header_row);
-  const firstDataRow = preview.rows.find((row) => row.row_number === source.first_data_row);
-  const headerValues = meaningfulValues(headerRow);
-  const dataValues = meaningfulValues(firstDataRow);
-  const selectedRows = preview.rows.filter((row) => row.selected && !row.ignored).length;
-  const checks: string[] = [];
-  let score = 40;
-
-  if (headerRow && headerValues.length >= Math.min(2, Math.max(1, preview.columns.length))) {
-    score += 20;
-    checks.push(`Header row ${source.header_row} has column labels.`);
-  } else {
-    checks.push(`Header row ${source.header_row} may be blank or incomplete.`);
-  }
-
-  if (firstDataRow && dataValues.length >= 2 && !isHeaderLikeRow(firstDataRow, headers) && !isRepeatedSectionRow(firstDataRow)) {
-    score += 25;
-    checks.push(`First data row ${source.first_data_row} looks like a real item row.`);
-  } else {
-    checks.push(`First data row ${source.first_data_row} should be reviewed.`);
-  }
-
-  if (source.first_data_row === source.header_row + 1) {
-    score += 5;
-    checks.push("Header and first data row are directly connected.");
-  } else {
-    checks.push("Rows between header and first data are excluded from validation.");
-  }
-
-  if (selectedRows > 0) {
-    score += 10;
-    checks.push(`${selectedRows} data row${selectedRows === 1 ? "" : "s"} detected for validation.`);
-  } else {
-    checks.push("No data rows were detected yet.");
-  }
-
-  if (sheet?.detected_header_row === source.header_row) score += 5;
-
-  const finalScore = Math.min(100, score);
-  const tone: SetupConfidenceTone = finalScore >= 80 ? "high" : finalScore >= 55 ? "medium" : "low";
-  const label = tone === "high" ? "High confidence" : tone === "medium" ? "Medium confidence" : "Low confidence";
-  const detail = tone === "high"
-    ? "Header and first data row look consistent."
-    : tone === "medium"
-      ? "Most setup signals look usable, but review the highlighted rows."
-      : "Review the highlighted rows carefully before confirming.";
-
-  return {
-    label,
-    score: finalScore,
-    tone,
-    ...confidenceStyle(tone),
-    detail,
-    checks: checks.slice(0, 4),
-  };
-}
-
-function confirmedStatus(source: ComparisonDataSource, preview?: DataSourcePreview) {
-  if (source.row_setup_confirmed) {
-    return {
-      label: "Confirmed",
-      className: "bg-emerald-50 text-emerald-700",
-      icon: CheckCircle2,
-      detail: "This source is ready for rows, fields, and rules.",
-    };
-  }
-  if (preview) {
-    return {
-      label: "Needs confirmation",
-      className: "bg-amber-50 text-amber-700",
-      icon: AlertTriangle,
-      detail: "Review the highlighted rows, then confirm this source.",
-    };
-  }
-  return {
-    label: "Preview needed",
-    className: "bg-slate-100 text-slate-700",
-    icon: Rows3,
-    detail: "Load the spreadsheet preview to see the actual rows.",
-  };
-}
+const setupActionButtonClass = "inline-flex items-center justify-center rounded-xl border bg-panel px-3 py-2 text-xs font-semibold transition active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100";
 
 export function RowSetupPage({ onContinue }: RowSetupPageProps) {
   const {
@@ -315,6 +40,7 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
   const [rowInputDrafts, setRowInputDrafts] = useState<RowInputDrafts>({});
   const [expandedConfidenceSourceIds, setExpandedConfidenceSourceIds] = useState<Set<string>>(() => new Set());
   const autoPreviewed = useRef<Set<string>>(new Set());
+  const previewRequestIds = useRef<Record<string, number>>({});
   const reloadTimersRef = useRef<Record<string, number>>({});
   const rowInputTimersRef = useRef<Record<string, number>>({});
 
@@ -323,9 +49,11 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
   const hasPreviewedSource = dataSources.some((source) => sourcePreviews[source.id]);
 
   useEffect(() => {
+    const reloadTimers = reloadTimersRef.current;
+    const rowInputTimers = rowInputTimersRef.current;
     return () => {
-      Object.values(reloadTimersRef.current).forEach((timer) => window.clearTimeout(timer));
-      Object.values(rowInputTimersRef.current).forEach((timer) => window.clearTimeout(timer));
+      Object.values(reloadTimers).forEach((timer) => window.clearTimeout(timer));
+      Object.values(rowInputTimers).forEach((timer) => window.clearTimeout(timer));
     };
   }, []);
 
@@ -345,6 +73,9 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
       setErrors((current) => ({ ...current, [source.id]: boundaryError }));
       return;
     }
+    const requestId = (previewRequestIds.current[source.id] ?? 0) + 1;
+    previewRequestIds.current[source.id] = requestId;
+    const isLatest = () => previewRequestIds.current[source.id] === requestId;
     setBusySourceId(source.id);
     if (showReloadVisual) setReloadVisualState(source.id, "loading");
     setErrors((current) => ({ ...current, [source.id]: "" }));
@@ -355,6 +86,8 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
         ignored_row_numbers: [],
         row_selection_mode: "auto_detected",
       });
+      // A newer request for this source was started; drop this stale response.
+      if (!isLatest()) return;
       const preview = sanitizeAutoDetectedPreview(rawPreview);
       updateDataSource(source.id, {
         ...preview.data_source,
@@ -373,13 +106,14 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
         }, 1100);
       }
     } catch (cause) {
+      if (!isLatest()) return;
       if (showReloadVisual) setReloadVisualState(source.id, undefined);
       setErrors((current) => ({
         ...current,
         [source.id]: cause instanceof Error ? cause.message : "Could not load the row preview.",
       }));
     } finally {
-      setBusySourceId(null);
+      if (isLatest()) setBusySourceId((current) => (current === source.id ? null : current));
     }
   }, [files, setReloadVisualState, setSourcePreview, sourcePreviews, updateDataSource]);
 
@@ -546,12 +280,8 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
         [field]: value,
       },
     }));
-    if (!value) return;
-    const timerKey = `${source.id}:${field}`;
-    rowInputTimersRef.current[timerKey] = window.setTimeout(() => {
-      delete rowInputTimersRef.current[timerKey];
-      commitRowInputValue(source, field, value);
-    }, 1000);
+    // Commit happens on blur/Enter only: auto-committing mid-typing clamped partial values
+    // (e.g. "" became header+1) and wiped the sibling field's draft.
   };
 
   const commitRowInputDraft = (source: ComparisonDataSource, field: "headerRow" | "firstDataRow") => {
@@ -578,21 +308,22 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
     updateDataSource(source.id, { ...source, row_setup_confirmed: true });
   };
 
+  // Bulk confirm skips sources whose own checks flag problems; those must be reviewed one by one.
   const confirmAllPreviewed = () => {
     setDataSources(dataSources.map((source) => {
+      if (source.row_setup_confirmed) return source;
       const preview = sourcePreviews[source.id];
-      const hasCurrentPreview = Boolean(preview && sourceSignature(preview.data_source) === sourceSignature(source));
-      return {
-        ...source,
-        row_setup_confirmed: hasCurrentPreview && !rowBoundaryError(source, files, preview),
-      };
+      const stale = !preview || sourceSignature(preview.data_source) !== sourceSignature(source);
+      const boundaryError = rowBoundaryError(source, files, preview);
+      const confident = setupConfidence(source, files, preview, stale, boundaryError).tone === "high";
+      return { ...source, row_setup_confirmed: !stale && !boundaryError && confident };
     }));
   };
 
   return (
     <div>
       <PageHeader
-        eyebrow="Step 2 of 4"
+        eyebrow="Step 2 of 5"
         title="Confirm row setup"
         description="Check the detected header row and first data row inside Clario before building rows, fields, and rules."
         action={
@@ -601,7 +332,7 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
               {confirmedCount} of {dataSources.length} confirmed
             </span>
             <button type="button" disabled={!hasPreviewedSource} onClick={confirmAllPreviewed} className={secondaryButtonClass}>
-              <CheckCircle2 className="size-4" /> Confirm all previewed
+              <CheckCircle2 className="size-4" /> Confirm high-confidence
             </button>
             <button type="button" disabled={!allConfirmed} onClick={onContinue} className={primaryButtonClass}>
               <Play className="size-4" /> Continue to comparison builder
@@ -636,9 +367,10 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
             const confidenceDetailsId = `confidence-details-${source.id}`;
 
             return (
-              <section key={source.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" data-fade-section>
-                <div className="border-b border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] p-5">
+              <section key={source.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-panel shadow-sm" data-fade-section>
+                <div className="border-b border-slate-200 bg-panel p-5">
                   <div className="flex flex-wrap items-start justify-between gap-4">
+                    <h2 className="flex min-w-0 flex-1">
                     <button
                       type="button"
                       onClick={() => toggleSource(source.id)}
@@ -648,26 +380,27 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
                       <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-700 transition group-hover:bg-emerald-100">
                         <FileSpreadsheet className="size-5" />
                       </span>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="text-base font-semibold text-slate-950">{source.name}</h2>
+                      <span className="block min-w-0">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-base font-semibold text-slate-950">{source.name}</span>
                           <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${status.className}`}>
                             <StatusIcon className="size-3.5" /> {status.label}
                           </span>
                           <span className={`text-xs font-semibold ${confidence.labelClassName}`}>
                             {confidence.label}
                           </span>
-                        </div>
-                        <p className="mt-1 text-sm leading-6 text-slate-500">{status.detail}</p>
-                      </div>
+                        </span>
+                        <span className="mt-1 block text-sm font-normal leading-6 text-slate-500">{status.detail}</span>
+                      </span>
                     </button>
+                    </h2>
                     <div className="flex shrink-0 items-center gap-2">
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Source {index + 1}</span>
                       <button
                         type="button"
                         onClick={() => toggleSource(source.id)}
                         aria-label={collapsed ? `Expand ${source.name}` : `Collapse ${source.name}`}
-                        className="grid size-9 place-items-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+                        className="grid size-9 place-items-center rounded-xl border border-slate-200 bg-panel text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
                       >
                         {collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
                       </button>
@@ -676,10 +409,11 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
                 </div>
 
                 <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
-                  <div className="overflow-hidden">
+                  {/* inert keeps collapsed controls out of the tab order and accessibility tree. */}
+                  <div className="overflow-hidden" inert={collapsed}>
                     <div className="grid gap-5 p-5 xl:grid-cols-[340px_minmax(0,1fr)]">
                       <div className="space-y-4">
-                        <div className="rounded-2xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600 shadow-sm">
+                        <div className="rounded-2xl border border-slate-200 bg-panel p-3 text-xs leading-5 text-slate-600 shadow-sm">
                           <div className="flex items-center justify-between gap-2">
                             <span className={`font-semibold ${confidence.labelClassName}`}>{confidence.label}</span>
                             <span className="font-semibold text-slate-700">{confidence.score}%</span>
@@ -693,7 +427,7 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
                             onClick={() => toggleConfidenceDetails(source.id)}
                             aria-expanded={confidenceExpanded}
                             aria-controls={confidenceDetailsId}
-                            className="mt-1 text-[11px] font-semibold text-emerald-700 transition hover:text-emerald-800"
+                            className="mt-1 text-xs font-semibold text-emerald-700 transition hover:text-emerald-800"
                           >
                             {confidenceExpanded ? "Hide details" : "View details"}
                           </button>
@@ -703,14 +437,14 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
                             className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${confidenceExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
                           >
                             <div className="overflow-hidden">
-                              <ul className="mt-2 space-y-1 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
+                              <ul className="mt-2 space-y-1 border-t border-slate-100 pt-2 text-xs text-slate-500">
                                 {confidence.checks.map((check) => <li key={check}>- {check}</li>)}
                               </ul>
                             </div>
                           </div>
                         </div>
 
-                        <label className="block">
+                        <div className="block">
                           <span className="text-xs font-semibold text-slate-600">Workbook file</span>
                           <SelectField
                             ariaLabel={`${source.name} file`}
@@ -720,8 +454,8 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
                             options={fileOptions}
                             onChange={(value) => changeFile(source, value)}
                           />
-                        </label>
-                        <label className="block">
+                        </div>
+                        <div className="block">
                           <span className="text-xs font-semibold text-slate-600">Worksheet tab</span>
                           <SelectField
                             ariaLabel={`${source.name} sheet`}
@@ -731,7 +465,7 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
                             options={sheetOptions}
                             onChange={(value) => changeSheet(source, value)}
                           />
-                        </label>
+                        </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <label className="block">
@@ -780,7 +514,7 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
                           <button
                             type="button"
                             onClick={() => confirmSource(source)}
-                            disabled={source.row_setup_confirmed || !preview || stalePreview || Boolean(boundaryError)}
+                            disabled={source.row_setup_confirmed || !preview || stalePreview || Boolean(sourceError) || busySourceId === source.id || rowInputDraft.headerRow !== undefined || rowInputDraft.firstDataRow !== undefined}
                             className={source.row_setup_confirmed ? "inline-flex cursor-default items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700" : primaryButtonClass}
                           >
                             <CheckCircle2 className="size-4" /> {source.row_setup_confirmed ? "Confirmed" : "Confirm setup"}
@@ -800,11 +534,11 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
 
                         {preview ? (
                           <>
-                            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-panel shadow-sm">
                               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-3">
                                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
                                   <span className="font-semibold text-slate-900">Selected row</span>
-                                  <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-slate-700 shadow-sm">
+                                  <span className="rounded-full bg-panel px-2.5 py-1 font-semibold text-slate-700 shadow-sm">
                                     {selectedRowNumberValue ? `Row ${selectedRowNumberValue}` : "Choose a row"}
                                   </span>
                                   {selectedRow ? rowBadge(selectedRow, source) : null}
@@ -837,13 +571,23 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
                                       return (
                                         <tr
                                           key={row.row_number}
-                                          aria-selected={selected}
+                                          data-selected={selected}
                                           onClick={() => selectPreviewRow(source.id, row.row_number)}
                                           className={`cursor-pointer align-top transition ${rowTone(row, source, selected)}`}
                                         >
                                           <td className={`w-40 min-w-40 border-l-4 px-3 py-2.5 ${cellClass} ${rowAccentClass(row, source, selected)}`}>
                                             <div className="flex flex-wrap items-center gap-2">
-                                              <span className="font-semibold text-slate-950">Row {row.row_number}</span>
+                                              <button
+                                                type="button"
+                                                aria-pressed={selected}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  selectPreviewRow(source.id, row.row_number);
+                                                }}
+                                                className="rounded font-semibold text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+                                              >
+                                                Row {row.row_number}
+                                              </button>
                                               {rowBadge(row, source)}
                                             </div>
                                           </td>
@@ -871,7 +615,7 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
                         ) : (
                           <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
                             <span>
-                              <Rows3 className="mx-auto size-7 text-slate-400" />
+                              <Rows3 className="mx-auto size-7 text-slate-500" />
                               <span className="mt-3 block text-sm font-semibold text-slate-800">Preview not loaded yet</span>
                               <span className="mt-1 block text-sm text-slate-500">Load the preview to see the actual header and data rows.</span>
                             </span>
@@ -886,7 +630,7 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
           })}
         </div>
 
-        <section className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" data-fade-section>
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-panel p-5 shadow-sm" data-fade-section>
           <div>
             <h2 className="text-sm font-semibold text-slate-950">Ready for the comparison builder?</h2>
             <p className="mt-1 text-sm leading-6 text-slate-500">
@@ -895,7 +639,7 @@ export function RowSetupPage({ onContinue }: RowSetupPageProps) {
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={!hasPreviewedSource} onClick={confirmAllPreviewed} className={secondaryButtonClass}>
-              <CheckCircle2 className="size-4" /> Confirm all previewed
+              <CheckCircle2 className="size-4" /> Confirm high-confidence
             </button>
             <button type="button" disabled={!allConfirmed} onClick={onContinue} className={primaryButtonClass}>
               <Play className="size-4" /> Continue to comparison builder
