@@ -18,7 +18,7 @@ from app.models.comparison_models import (
     ValidationResult,
 )
 from app.services.extraction_service import extract_records, get_field, get_field_value
-from app.normalizers.text_normalizer import normalize_text
+from app.normalizers.text_normalizer import normalize_text, similar_text_key
 
 
 _MATCH_STRATEGY_LABELS = {
@@ -32,6 +32,7 @@ _MATCH_STRATEGY_LABELS = {
 _STRICTNESS_LABELS = {
     "exact": "exact matching",
     "normalized_exact": "exact text matching while ignoring case and extra spacing",
+    "similar_text": "text matching that ignores case, spacing, and punctuation",
     "numeric_tolerance": "numeric tolerance matching",
     "currency_tolerance": "currency tolerance matching",
 }
@@ -152,6 +153,8 @@ def _compare_values(left: object, right: object, rule: ComparisonRule, field_typ
         if field_type == "text":
             return normalize_text(left, True) == normalize_text(right, True)
         return left == right
+    if rule.strictness == "similar_text":
+        return similar_text_key(left) == similar_text_key(right)
     if rule.strictness == "numeric_tolerance":
         if left is None or right is None:
             return False
@@ -525,7 +528,7 @@ def run_validation(request: ValidationRequest) -> ValidationResult:
     file_names = sorted({record.source_file_name for record in records})
     breakdown = dict(Counter(item.severity for item in discrepancies))
     return ValidationResult(
-        id=uuid4().hex,
+        id=request.session_id or uuid4().hex,
         project_name=request.project_name,
         preset=request.preset,
         created_at=datetime.now(timezone.utc).isoformat(),

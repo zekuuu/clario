@@ -7,7 +7,7 @@ FieldType = Literal["text", "number", "currency", "date", "boolean", "raw"]
 RowSelectionMode = Literal["auto_detected", "manual_include", "manual_exclude"]
 RuleType = Literal["compare_values", "formula_check", "required_field_check", "duplicate_check"]
 MatchStrategy = Literal["by_row_order", "by_item_number_field", "by_exact_text_field", "by_multiple_fields", "manual_placeholder"]
-RuleStrictness = Literal["exact", "normalized_exact", "numeric_tolerance", "currency_tolerance"]
+RuleStrictness = Literal["exact", "normalized_exact", "similar_text", "numeric_tolerance", "currency_tolerance"]
 Severity = Literal["low", "medium", "high"]
 PresetType = Literal["reference_vs_copied", "reference_bidder_abstract", "generic_two_file", "custom_comparison_builder"]
 FormulaOperator = Literal["add", "subtract", "multiply", "divide"]
@@ -131,6 +131,8 @@ class ValidationRequest(BaseModel):
     preset: PresetType = "custom_comparison_builder"
     data_sources: list[ComparisonDataSource] = Field(default_factory=list)
     rules: list[ComparisonRule] = Field(default_factory=list)
+    # Existing draft/session to finalize; a new id is generated when omitted.
+    session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,80}$")
 
 
 class RuleSummary(BaseModel):

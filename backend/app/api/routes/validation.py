@@ -73,7 +73,7 @@ async def add_session_file(session_id: str, request: SessionFileRequest) -> dict
         raise HTTPException(status_code=500, detail="The uploaded file could not be saved to this session.") from cause
     if persisted is None:
         raise HTTPException(status_code=404, detail="Session not found.")
-    return persisted
+    return {key: value for key, value in persisted.items() if key != "path"}
 
 
 @router.get("/sessions/{session_id}")

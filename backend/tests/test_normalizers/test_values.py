@@ -14,3 +14,10 @@ def test_text_normalizer_collapses_whitespace_and_case() -> None:
 def test_number_normalizer(raw: object, expected: Decimal | None) -> None:
     assert normalize_number(raw) == expected
 
+
+
+def test_similar_text_key_ignores_spacing_and_punctuation() -> None:
+    from app.normalizers.text_normalizer import similar_text_key
+
+    assert similar_text_key("Reusable gel pack, 500 g, food-safe shell") == similar_text_key("reusable gel pack 500g food safe shell")
+    assert similar_text_key("Bond paper A4") != similar_text_key("Bond paper A3")

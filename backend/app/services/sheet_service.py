@@ -141,6 +141,11 @@ def _inspect_xlsx_sheets(path: Path) -> list[SheetInfo]:
     try:
         result: list[SheetInfo] = []
         for worksheet in workbook.worksheets:
+            # Files written without a <dimension> tag report max_row/max_column as None in
+            # read-only mode, so recompute instead of trusting the stored size.
+            if worksheet.max_row is None or worksheet.max_column is None:
+                worksheet.reset_dimensions()
+                worksheet.calculate_dimension(force=True)
             row_count = worksheet.max_row or 0
             column_count = worksheet.max_column or 0
             rows = list(
