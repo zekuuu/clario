@@ -1,4 +1,0 @@
-/* Current release: templates are intentionally reserved for a future version. */
-html[data-theme] a[href="/templates"] {
-  display: none !important;
-}

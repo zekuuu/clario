@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./tokens.css";
 
 :root {
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
@@ -15,8 +16,9 @@
   --color-border-soft: #f1f5f9;
   --color-text: #0f172a;
   --color-text-soft: #334155;
-  --color-text-muted: #64748b;
-  --color-text-faint: #94a3b8;
+  /* AA (4.5:1) on both panel (#fff) and panel-muted (#f1f5f9). */
+  --color-text-muted: #556377;
+  --color-text-faint: #64748b;
   --color-brand-soft: #ecfdf5;
   --color-brand-muted: #d1fae5;
   --color-brand-border: #d1fae5;
@@ -45,14 +47,16 @@ html[data-theme="dark"] {
   --color-border-soft: #1f2937;
   --color-text: #f8fafc;
   --color-text-soft: #cbd5e1;
-  --color-text-muted: #94a3b8;
-  --color-text-faint: #64748b;
+  /* AA (4.5:1) on panel (#111827) and panel-muted (#1e293b). */
+  --color-text-muted: #a8b4c6;
+  --color-text-faint: #94a3b8;
   --color-brand-soft: rgba(16, 185, 129, 0.13);
   --color-brand-muted: rgba(16, 185, 129, 0.2);
   --color-brand-border: rgba(52, 211, 153, 0.34);
   --color-brand-text: #6ee7b7;
-  --color-brand-strong: #059669;
-  --color-brand-strong-hover: #10b981;
+  /* White button text needs 4.5:1; #059669 was 3.6:1. */
+  --color-brand-strong: #047857;
+  --color-brand-strong-hover: #065f46;
   --color-blue-soft: rgba(59, 130, 246, 0.16);
   --color-blue-border: rgba(147, 197, 253, 0.38);
   --color-blue-text: #bfdbfe;
@@ -97,96 +101,12 @@ html[data-theme="dark"] .clario-logo--dark {
   min-width: 0;
 }
 
-html[data-theme] :where(.bg-white) { background-color: var(--color-panel) !important; }
-html[data-theme] :where(.bg-slate-50) { background-color: var(--color-panel-soft) !important; }
-html[data-theme] :where(.bg-slate-100) { background-color: var(--color-panel-muted) !important; }
-html[data-theme] :where(.bg-slate-200) { background-color: var(--color-border) !important; }
-html[data-theme] :where(.bg-emerald-50) { background-color: var(--color-brand-soft) !important; }
-html[data-theme] :where(.bg-emerald-100) { background-color: var(--color-brand-muted) !important; }
-html[data-theme] :where(.bg-emerald-700) { background-color: var(--color-brand-strong) !important; }
-html[data-theme] :where(.hover\:bg-emerald-800:hover) { background-color: var(--color-brand-strong-hover) !important; }
-html[data-theme] :where(.hover\:bg-slate-50:hover) { background-color: var(--color-panel-soft) !important; }
-html[data-theme] :where(.hover\:bg-slate-100:hover) { background-color: var(--color-panel-muted) !important; }
-html[data-theme] :where(.bg-blue-50, .bg-sky-50) { background-color: var(--color-blue-soft) !important; }
-html[data-theme] :where(.bg-amber-50) { background-color: var(--color-amber-soft) !important; }
-html[data-theme] :where(.bg-red-50) { background-color: var(--color-red-soft) !important; }
 
-html[data-theme] :where([class~="bg-white/95"], [class~="bg-white/90"], [class~="bg-white/80"], [class~="bg-white/70"], [class~="bg-slate-50/95"], [class~="bg-slate-50/90"], [class~="bg-slate-50/80"], [class~="bg-slate-50/70"]) {
-  background-color: color-mix(in srgb, var(--color-panel) 92%, transparent) !important;
-}
-html[data-theme] :where([class~="bg-emerald-50/95"], [class~="bg-emerald-50/90"], [class~="bg-emerald-50/80"], [class~="bg-emerald-50/70"], [class~="bg-emerald-50/60"], [class~="bg-emerald-50/40"]) {
-  background-color: color-mix(in srgb, var(--color-brand-soft) 78%, transparent) !important;
-}
-html[data-theme] :where([class~="bg-amber-50/90"], [class~="bg-amber-50/80"], [class~="bg-amber-50/70"], [class~="bg-amber-50/60"], [class~="bg-amber-50/40"]) {
-  background-color: color-mix(in srgb, var(--color-amber-soft) 78%, transparent) !important;
-}
-html[data-theme] :where([class~="bg-blue-50/90"], [class~="bg-blue-50/80"], [class~="bg-blue-50/70"], [class~="bg-blue-50/60"], [class~="bg-blue-50/40"]) {
-  background-color: color-mix(in srgb, var(--color-blue-soft) 78%, transparent) !important;
-}
-html[data-theme] :where([class~="bg-red-50/90"], [class~="bg-red-50/80"], [class~="bg-red-50/70"], [class~="bg-red-50/60"], [class~="bg-red-50/40"]) {
-  background-color: color-mix(in srgb, var(--color-red-soft) 78%, transparent) !important;
-}
-
-html[data-theme] :where(.border-slate-100) { border-color: var(--color-border-soft) !important; }
-html[data-theme] :where(.border-slate-200, .border-slate-300) { border-color: var(--color-border) !important; }
-html[data-theme] :where(.border-emerald-100, .border-emerald-200) { border-color: var(--color-brand-border) !important; }
-html[data-theme] :where(.border-blue-200, .border-sky-200) { border-color: var(--color-blue-border) !important; }
-html[data-theme] :where(.border-amber-200) { border-color: var(--color-amber-border) !important; }
-html[data-theme] :where(.border-red-200) { border-color: var(--color-red-border) !important; }
-html[data-theme="dark"] :where(.border-white, [class~="border-white/90"], [class~="border-white/80"], [class~="border-white/70"], [class~="border-white/60"]) { border-color: var(--color-border) !important; }
-html[data-theme="dark"] :where(.ring-white, [class~="ring-white/90"], [class~="ring-white/80"], [class~="ring-white/70"], [class~="ring-white/60"]) { --tw-ring-color: var(--color-brand-border) !important; }
-
-html[data-theme] :where(.text-slate-950, .text-slate-900, .text-slate-800) { color: var(--color-text) !important; }
-html[data-theme] :where(.text-slate-700, .text-slate-600) { color: var(--color-text-soft) !important; }
-html[data-theme] :where(.text-slate-500) { color: var(--color-text-muted) !important; }
-html[data-theme] :where(.text-slate-400) { color: var(--color-text-faint) !important; }
-html[data-theme] :where(.text-emerald-900, .text-emerald-800, .text-emerald-700) { color: var(--color-brand-text) !important; }
-html[data-theme] :where(.text-sky-700, .text-blue-700, .text-blue-950) { color: var(--color-blue-text) !important; }
-html[data-theme] :where(.text-amber-900, .text-amber-800, .text-amber-700) { color: var(--color-amber-text) !important; }
-html[data-theme] :where(.text-red-700) { color: var(--color-red-text) !important; }
-html[data-theme] :where(.hover\:text-slate-950:hover) { color: var(--color-text) !important; }
-html[data-theme] :where(.hover\:text-emerald-700:hover) { color: var(--color-brand-text) !important; }
-html[data-theme="dark"] :where(.text-white) { color: var(--color-text) !important; }
-
-html[data-theme="dark"] :where(.from-emerald-50) { --tw-gradient-from: rgba(16, 185, 129, 0.14) var(--tw-gradient-from-position) !important; --tw-gradient-to: rgba(16, 185, 129, 0) var(--tw-gradient-to-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
-html[data-theme="dark"] :where(.via-white) { --tw-gradient-via: var(--color-panel) var(--tw-gradient-via-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to) !important; }
-html[data-theme="dark"] :where(.to-white) { --tw-gradient-to: var(--color-panel) var(--tw-gradient-to-position) !important; }
-
-html[data-theme] :where(input, select, textarea) {
-  background-color: var(--color-panel) !important;
-  border-color: var(--color-border) !important;
-  color: var(--color-text) !important;
-}
-
-html[data-theme] .session-search-input {
-  background-color: transparent !important;
-}
-
-html[data-theme] .session-rename-input {
-  background-color: transparent !important;
-}
-
-html[data-theme] :where(input::placeholder, textarea::placeholder) {
-  color: var(--color-text-faint) !important;
-}
-
-html[data-theme="dark"] :where(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) {
-  --tw-shadow-color: rgba(0, 0, 0, 0.42);
-}
-
-main :where(a, button).rounded-xl:where(.bg-emerald-700, .border-slate-300) {
+main :where(a, button).rounded-xl:where(.bg-brand, .border-slate-300) {
   min-height: 2.75rem;
   align-items: center;
   justify-content: center;
   line-height: 1.25rem;
-}
-
-body[data-row-setup-blocked="true"] button[title="Run validation with the current sources, rows, fields, and rules"] {
-  pointer-events: none;
-  cursor: not-allowed;
-  background: #cbd5e1;
-  opacity: 0.85;
-  box-shadow: none;
 }
 
 main thead.sticky {
@@ -258,25 +178,15 @@ main :where(.max-h-\[34rem\] table tbody tr) {
   border-left-width: 0 !important;
 }
 
-main :where(.max-h-\[34rem\] table tbody tr[aria-selected="true"] > td) {
+main :where(.max-h-\[34rem\] table tbody tr[data-selected="true"] > td) {
   background: var(--color-blue-soft) !important;
   border-top: 1px solid var(--color-blue-border) !important;
   border-bottom: 1px solid var(--color-blue-border) !important;
   color: var(--color-blue-text);
 }
 
-main :where(.max-h-\[34rem\] table tbody tr[aria-selected="true"] > td:first-child span.font-semibold) {
+main :where(.max-h-\[34rem\] table tbody tr[data-selected="true"] > td:first-child :is(span, button).font-semibold) {
   color: var(--color-blue-text);
-}
-
-main :where(.truncate) {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-}
-
-main :where(.whitespace-nowrap) {
-  white-space: normal;
 }
 
 main :where(div:has(> h2.truncate + span.inline-flex)) {

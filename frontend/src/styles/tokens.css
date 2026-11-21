@@ -1,0 +1,168 @@
+/*
+ * Design tokens.
+ *
+ * Tailwind v4 utilities read their colors from CSS variables (bg-slate-50 -> var(--color-slate-50)),
+ * so dark mode redefines the variables once instead of remapping class names. Opacity variants
+ * (bg-emerald-50/40) and hover/focus variants follow automatically.
+ *
+ * Where one shade is used both as a fill under white text and as a text color, components use a
+ * semantic token instead (bg-brand, bg-danger, bg-panel, bg-scrim, bg-tooltip), so the palette
+ * shade can invert for text without breaking buttons.
+ */
+
+@theme {
+  --color-panel: #ffffff;
+  --color-brand: #047857;
+  --color-brand-hover: #065f46;
+  --color-brand-active: #064e3b;
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-active: #7f1d1d;
+  --color-scrim: #020617;
+  --color-tooltip: #0f172a;
+}
+
+html[data-theme="dark"] {
+  /* Semantic */
+  --color-panel: #111827;
+  --color-brand: #047857;
+  --color-brand-hover: #065f46;
+  --color-brand-active: #064e3b;
+  --color-danger: #b91c1c;
+  --color-danger-hover: #991b1b;
+  --color-danger-active: #7f1d1d;
+  --color-tooltip: #1e293b;
+
+  /* Neutrals: light shades become dark surfaces, dark shades become light text. All text shades from
+     400 up meet 4.5:1 on --color-panel. */
+  --color-slate-50: #0f172a;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #a8b4c6;
+  --color-slate-600: #c2ccd8;
+  --color-slate-700: #d5dde7;
+  --color-slate-800: #e2e8f0;
+  --color-slate-900: #eef2f6;
+  --color-slate-950: #f8fafc;
+  --color-zinc-100: #27272a;
+  --color-zinc-600: #d4d4d8;
+
+  /* Accents: tints become translucent washes, text shades become light. */
+  --color-emerald-50: rgb(16 185 129 / 0.13);
+  --color-emerald-100: rgb(16 185 129 / 0.2);
+  --color-emerald-200: rgb(52 211 153 / 0.34);
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #34d399;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-900: #d1fae5;
+
+  --color-amber-50: rgb(245 158 11 / 0.14);
+  --color-amber-100: rgb(245 158 11 / 0.22);
+  --color-amber-200: rgb(245 158 11 / 0.32);
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #fbbf24;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fef3c7;
+
+  --color-red-50: rgb(239 68 68 / 0.14);
+  --color-red-100: rgb(239 68 68 / 0.22);
+  --color-red-200: rgb(248 113 113 / 0.32);
+  --color-red-300: rgb(248 113 113 / 0.5);
+  --color-red-500: #ef4444;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+
+  --color-sky-50: rgb(14 165 233 / 0.16);
+  --color-sky-100: rgb(14 165 233 / 0.24);
+  --color-sky-200: rgb(125 211 252 / 0.38);
+  --color-sky-500: #0ea5e9;
+  --color-sky-700: #7dd3fc;
+  --color-blue-50: rgb(59 130 246 / 0.16);
+  --color-blue-300: rgb(147 197 253 / 0.5);
+}
+
+/* Native form controls default to UA white; give them the panel color without !important so
+   utility classes (error tints, transparent search inputs) still win. */
+:where(input, select, textarea) {
+  background-color: var(--color-panel);
+  color: inherit;
+}
+
+:where(input, textarea)::placeholder {
+  color: var(--color-slate-500);
+}
+
+html[data-theme="dark"] :where(.shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl) {
+  --tw-shadow-color: rgb(0 0 0 / 0.42);
+}
+
+/* Disabled primary buttons must not look enabled. */
+:where(button:disabled, [aria-disabled="true"]):where(.bg-brand) {
+  background-color: var(--color-slate-100);
+  color: var(--color-slate-500);
+  box-shadow: none;
+}
+
+/* Row setup preview table: one definition for both themes, built from palette variables. */
+.row-preview-row > td,
+.row-preview-cell {
+  background-color: var(--color-panel);
+  border-color: var(--color-slate-100);
+}
+.row-preview-row:hover > td {
+  background-color: var(--color-blue-50);
+}
+.row-preview-row--selected > td,
+.row-preview-cell--selected {
+  background-color: var(--color-blue-50);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 var(--color-blue-300), inset 0 -1px 0 var(--color-blue-300);
+}
+.row-preview-accent--selected {
+  border-left-color: #60a5fa;
+  box-shadow: inset 0 1px 0 var(--color-blue-300), inset 0 -1px 0 var(--color-blue-300) !important;
+}
+.row-preview-row--header > td {
+  background-color: var(--color-sky-50);
+}
+.row-preview-row--first-data > td {
+  background-color: var(--color-amber-50);
+}
+.row-preview-row--included > td {
+  background-color: color-mix(in srgb, var(--color-emerald-50) 60%, transparent);
+}
+
+.reload-feedback-overlay--loading {
+  background-color: color-mix(in srgb, var(--color-panel) 60%, transparent);
+}
+.reload-feedback-overlay--success {
+  background-color: color-mix(in srgb, var(--color-emerald-50) 45%, transparent);
+}
+.reload-feedback-message {
+  background-color: var(--color-panel);
+}
+.reload-feedback-message--loading {
+  border-color: var(--color-slate-200);
+  color: var(--color-slate-700);
+  box-shadow: 0 18px 40px rgb(15 23 42 / 0.18);
+}
+.reload-feedback-message--success {
+  border-color: var(--color-emerald-200);
+  color: var(--color-emerald-700);
+  box-shadow: 0 18px 40px rgb(16 185 129 / 0.16);
+}
+
+.session-options-item:hover,
+.session-options-item:focus-visible {
+  background-color: var(--color-slate-100);
+}
+.session-search-field:focus-within,
+.validation-results-search:focus {
+  border-color: var(--color-emerald-600);
+}
