@@ -41,7 +41,7 @@ The local backend service is not reachable. Please make sure the backend is runn
 Check these items:
 
 - Confirm port `8766` is not already occupied by another process.
- Visit `http://127.0.0.1:8766/health`.
+- Visit `http://127.0.0.1:8766/health`.
 
 ## Start backend and frontend separately
 
@@ -60,12 +60,4 @@ cd frontend
 npm run dev
 ```
 
-If port `1420` is already in use:
-
-```powershell
-npm run dev -- --host 127.0.0.1 --port 1421
-```
-
-## Why preset selection is required
-
-The Comparison Builder is flexible, and presets only create a starting structure. Requiring a preset selection prevents the app from assuming a comparison mode the user did not choose. Users can select `Custom Comparison Builder` when they want a fully manual setup.
+If port `1420` is already in use, stop the other process. The backend only accepts browser requests from `http://127.0.0.1:1420`, `http://localhost:1420`, and the Tauri origins, so a different dev port will be refused by CORS.

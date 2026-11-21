@@ -14,16 +14,9 @@ The updated UI uses a staged workflow:
 
 The URL can remain `/mapping` for compatibility, but the component and visible workflow are now the Comparison Builder.
 
-## Preset behavior
+## Source names
 
-Presets guide the setup but do not automatically assign meaning to uploaded files. Sources start with neutral filename-based names such as `Source 1 - file.xlsx`.
-
-When a preset is selected, the builder shows an explicit setup card. The user can:
-
-- Apply preset setup
-- Start manually
-
-Applying a preset can suggest labels such as Reference, Bidder, Abstract, or Copied file. Starting manually keeps neutral source names.
+Sources start with neutral filename-based names such as `Source 1 - file.xlsx`. Presets are not exposed in the current version; every session uses the custom comparison builder.
 
 ## Sources
 

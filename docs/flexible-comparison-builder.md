@@ -83,20 +83,13 @@ Strictness options are:
 - `normalized_exact`
 - `numeric_tolerance`
 - `currency_tolerance`
+- `similar_text`: ignores case, spacing, and punctuation ("500 g," matches "500g"). It is the suggested default for description and name fields.
 
-Fuzzy matching is intentionally not part of this version.
+Fuzzy (edit-distance) matching is intentionally not part of this version.
 
-## How presets work
+## Presets
 
-Presets are now scaffolding, not hardcoded validation engines.
-
-They create a starting point for:
-
-- Data sources
-- Common procurement fields
-- Initial comparison rules
-
-The user can then adjust row selections, fields, and rules as needed.
+Presets are not exposed in the current version. Requests still carry `preset: "custom_comparison_builder"` for compatibility; validation is driven only by the explicit sources, fields, and rules.
 
 ## Adding future rule types
 
