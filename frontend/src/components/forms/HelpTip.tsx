@@ -48,13 +48,13 @@ const supplementalTips: Record<string, string> = {
 };
 
 function getSupplementalTip(text: string) {
-  return supplementalTips[text] ?? `Extra guidance: ${text}`;
+  return supplementalTips[text] ?? text;
 }
 
 export function HelpTip({ text }: HelpTipProps) {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState<TooltipPosition | null>(null);
-  const triggerRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const tooltipText = getSupplementalTip(text);
 
   const updatePosition = useCallback(() => {
@@ -116,29 +116,42 @@ export function HelpTip({ text }: HelpTipProps) {
     <span
       role="tooltip"
       style={tooltipStyle}
-      className="pointer-events-none fixed z-[130] rounded-xl bg-slate-900 px-3 py-2.5 text-left text-xs font-normal leading-5 text-white opacity-0 shadow-xl animate-[builder-dialog-in_120ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
+      className="pointer-events-none fixed z-[130] rounded-xl bg-tooltip px-3 py-2.5 text-left text-xs font-normal leading-5 text-white opacity-0 shadow-xl animate-[builder-dialog-in_120ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
     >
       {tooltipText}
       <span
         aria-hidden="true"
         style={arrowStyle}
-        className={`absolute -translate-x-1/2 border-4 border-transparent ${position.placement === "top" ? "top-full border-t-slate-900" : "bottom-full border-b-slate-900"}`}
+        className={`absolute -translate-x-1/2 border-4 border-transparent ${position.placement === "top" ? "top-full border-t-tooltip" : "bottom-full border-b-tooltip"}`}
       />
     </span>,
     document.body,
   ) : null;
 
   return (
-    <span
-      ref={triggerRef}
-      className="help-tip inline-flex align-middle"
-      aria-hidden="true"
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
-    >
-      <span className="help-tip-trigger grid size-5 place-items-center rounded-full text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
-        <CircleHelp className="size-3.5" />
-      </span>
+    <span className="help-tip inline-flex align-middle">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`More information: ${tooltipText}`}
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onFocus={() => setVisible(true)}
+        onBlur={() => setVisible(false)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && visible) {
+            event.stopPropagation();
+            setVisible(false);
+          }
+        }}
+        onClick={(event) => {
+          event.preventDefault();
+          setVisible((current) => !current);
+        }}
+        className="help-tip-trigger grid size-6 place-items-center rounded-full text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+      >
+        <CircleHelp aria-hidden="true" className="size-3.5" />
+      </button>
       {tooltip}
     </span>
   );

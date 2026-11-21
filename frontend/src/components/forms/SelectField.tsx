@@ -38,7 +38,9 @@ export function SelectField({ value, options, onChange, ariaLabel, className = "
   const rootRef = useRef<HTMLDivElement>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
   const listboxId = useId();
-  const selected = options.find((option) => option.value === value) ?? options[0];
+  // No silent fallback to the first option: an unmatched value shows the placeholder.
+  const selected = options.find((option) => option.value === value);
+  const optionId = (index: number) => `${listboxId}-option-${index}`;
 
   const updateMenuPosition = useCallback(() => {
     const rect = rootRef.current?.getBoundingClientRect();
@@ -115,7 +117,7 @@ export function SelectField({ value, options, onChange, ariaLabel, className = "
       role="listbox"
       aria-label={ariaLabel}
       style={menuStyle}
-      className="fixed z-[110] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_48px_rgba(15,23,42,0.18)] animate-[builder-dialog-in_120ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
+      className="fixed z-[110] overflow-y-auto rounded-xl border border-slate-200 bg-panel p-1.5 shadow-[0_18px_48px_rgba(15,23,42,0.18)] animate-[builder-dialog-in_120ms_cubic-bezier(0.16,1,0.3,1)_forwards]"
     >
       {options.map((option, index) => {
         const isSelected = option.value === value;
@@ -124,12 +126,14 @@ export function SelectField({ value, options, onChange, ariaLabel, className = "
           <button
             type="button"
             role="option"
+            id={optionId(index)}
+            tabIndex={-1}
             aria-selected={isSelected}
             title={option.description ?? `Choose ${option.label}`}
             key={option.value}
             onPointerEnter={() => setActiveIndex(index)}
             onClick={() => choose(option)}
-            className={`flex w-full cursor-pointer items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-150 ${compact ? "text-xs" : "text-sm"} ${isSelected ? "bg-emerald-50 font-semibold text-emerald-00" : isActive ? "bg-slate-100 text-slate-950" : "text-slate-700 hover:bg-slate-100"}`}
+            className={`flex w-full cursor-pointer items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-150 ${compact ? "text-xs" : "text-sm"} ${isSelected ? "bg-emerald-50 font-semibold text-emerald-800" : isActive ? "bg-slate-100 text-slate-950" : "text-slate-700 hover:bg-slate-100"}`}
           >
             <span className="min-w-0 flex-1 whitespace-normal break-words leading-5">{option.label}</span>
             <Check aria-hidden="true" className={`mt-0.5 size-4 shrink-0 text-emerald-700 ${isSelected ? "opacity-100" : "opacity-0"}`} />
@@ -144,10 +148,12 @@ export function SelectField({ value, options, onChange, ariaLabel, className = "
     <div ref={rootRef} className={`relative ${className}`}>
       <button
         type="button"
+        role="combobox"
         aria-label={ariaLabel}
         aria-controls={listboxId}
         aria-expanded={open}
         aria-haspopup="listbox"
+        aria-activedescendant={open ? optionId(activeIndex) : undefined}
         title={helpText ?? `Choose ${ariaLabel.toLowerCase()}`}
         onClick={() => setOpen((current) => !current)}
         onKeyDown={(event) => {
@@ -160,11 +166,19 @@ export function SelectField({ value, options, onChange, ariaLabel, className = "
             event.preventDefault();
             const option = options[activeIndex];
             if (option) choose(option);
-          } else if (event.key === "Escape") {
+          } else if ((event.key === "Home" || event.key === "End") && open) {
+            event.preventDefault();
+            setActiveIndex(event.key === "Home" ? 0 : options.length - 1);
+          } else if (event.key === "Escape" && open) {
+            // Close only the menu; don't let Escape also dismiss the surrounding drawer/dialog.
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(false);
+          } else if (event.key === "Tab" && open) {
             setOpen(false);
           }
         }}
-        className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border bg-white text-left text-slate-800 outline-none transition duration-200 hover:border-slate-400 hover:bg-slate-50 focus-visible:border-emerald-00 focus-visible:ring-3 focus-visible:ring-emerald-100 ${open ? "border-emerald-600 ring-3 ring-emerald-100" : "border-slate-300"} ${compact ? "min-h-9 px-3 py-2 text-xs" : "min-h-11 px-3.5 py-2.5 text-sm"}`}
+        className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border bg-panel text-left text-slate-800 outline-none transition duration-200 hover:border-slate-400 hover:bg-slate-50 focus-visible:border-emerald-600 focus-visible:ring-3 focus-visible:ring-emerald-100 ${open ? "border-emerald-600 ring-3 ring-emerald-100" : "border-slate-300"} ${compact ? "min-h-9 px-3 py-2 text-xs" : "min-h-11 px-3.5 py-2.5 text-sm"}`}
       >
         <span className="min-w-0 flex-1 truncate font-medium">{selected?.label ?? "Select an option"}</span>
         <ChevronDown aria-hidden="true" className={`size-4 shrink-0 text-slate-500 transition-transform duration-200 ${open ? "rotate-180" : "rotate-0"}`} />
