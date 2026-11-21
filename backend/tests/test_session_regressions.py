@@ -132,3 +132,36 @@ class SessionRegressionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RunFinalizesDraftTests(SessionRegressionTests):
+    def test_run_with_session_id_updates_draft_instead_of_duplicating(self) -> None:
+        session_id, session_directory, _ = self._create_saved_session()
+
+        response = self.client.post(
+            "/api/v1/validation/run",
+            json={"project_name": "Saved session", "session_id": session_id, "data_sources": [], "rules": []},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["id"], session_id)
+
+        recent = self.client.get("/api/v1/validation/recent").json()
+        self.assertEqual([item["id"] for item in recent], [session_id])
+        folders = sorted(path.name for path in self.settings.sessions_directory.iterdir())
+        self.assertEqual(folders, ["Saved session"])
+        self.assertTrue((session_directory / "result.json").exists())
+
+    def test_run_keeps_uploaded_files_not_used_by_a_source(self) -> None:
+        session_id, _, file_id = self._create_saved_session()
+
+        self.client.post("/api/v1/validation/run", json={"project_name": "Saved session", "session_id": session_id, "data_sources": [], "rules": []})
+
+        state = self.client.get(f"/api/v1/validation/sessions/{session_id}").json()
+        self.assertEqual([item["id"] for item in state["files"]], [file_id])
+
+    def test_run_rejects_malformed_session_id(self) -> None:
+        response = self.client.post(
+            "/api/v1/validation/run",
+            json={"project_name": "x", "session_id": "../../etc", "data_sources": [], "rules": []},
+        )
+        self.assertEqual(response.status_code, 422)

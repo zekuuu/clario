@@ -3,15 +3,20 @@ import re
 from pathlib import Path
 from typing import Any
 
-from app.config.settings import get_settings
+from app.config.settings import from_stored_path, get_settings
 from app.models.validation_models import ValidationRequest, ValidationResult
 
 INVALID_PATH_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
 
 
+WINDOWS_RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+
+
 def safe_session_folder_name(project_name: str) -> str:
     cleaned = INVALID_PATH_CHARS.sub("-", project_name).strip(" .")
     cleaned = re.sub(r"\s+", " ", cleaned)[:80].strip(" .")
+    if cleaned.split(".")[0].upper() in WINDOWS_RESERVED_NAMES:
+        cleaned = f"{cleaned} session"
     return cleaned or "validation-session"
 
 
@@ -40,7 +45,7 @@ def ensure_session_directory(project_name: str, session_id: str, existing_path: 
     root.mkdir(parents=True, exist_ok=True)
 
     if existing_path:
-        existing = Path(existing_path)
+        existing = from_stored_path(existing_path)
         if existing.exists() and existing.is_dir():
             _ensure_children(existing)
             return existing

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
 
-from app.config.settings import get_settings
+from app.config.settings import from_stored_path, get_settings, to_stored_path
 from app.database.connection import database
 from app.models.comparison_models import PresetType
 from app.models.validation_models import ValidationRequest, ValidationResult
@@ -44,10 +44,7 @@ class SessionRepository:
     def _session_directory_path(raw_path: str | None) -> Path | None:
         if raw_path in (None, ""):
             return None
-        path = Path(str(raw_path))
-        if not path.is_absolute():
-            path = get_settings().data_directory / path
-        return path.resolve()
+        return from_stored_path(raw_path).resolve()
 
     def create_draft(
         self,
@@ -105,7 +102,7 @@ class SessionRepository:
                     created_at,
                     result.model_dump_json(),
                     request.model_dump_json(),
-                    str(session_directory),
+                    to_stored_path(session_directory),
                 ),
             )
         return {"id": session_id, "project_name": name, "status": "created"}
@@ -170,7 +167,7 @@ class SessionRepository:
                     json.dumps(file_names),
                     json.dumps(result_payload) if result_payload is not None else row["result_payload"],
                     json.dumps(request_payload) if request_payload is not None else row["request_payload"],
-                    str(session_path),
+                    to_stored_path(session_path),
                     session_id,
                 ),
             )
@@ -186,7 +183,9 @@ class SessionRepository:
             existing = connection.execute("SELECT session_path FROM sessions WHERE id = ? LIMIT 1", (result.id,)).fetchone()
             existing_path = str(existing["session_path"]) if existing and existing["session_path"] else None
             session_directory = ensure_session_directory(result.project_name, result.id, existing_path)
-            persisted_files = []
+            # Keep files already saved with the session (e.g. uploaded but not mapped to a source yet);
+            # a run only adds the files its data sources use.
+            persisted_files = self._unique_file_metadata(read_session_files(session_directory))
             for source in request.data_sources if request else []:
                 if any(item["id"] == source.file_id for item in persisted_files):
                     continue
@@ -203,7 +202,7 @@ class SessionRepository:
                     result.created_at,
                     result.model_dump_json(),
                     request.model_dump_json() if request else None,
-                    str(session_directory),
+                    to_stored_path(session_directory),
                 ),
             )
 
@@ -226,6 +225,7 @@ class SessionRepository:
             item["can_continue_setup"] = bool(item.get("request_payload") or item.get("session_path"))
             item.pop("result_payload", None)
             item.pop("request_payload", None)
+            item.pop("session_path", None)
             sessions.append(item)
         return sessions
 
@@ -323,7 +323,7 @@ class SessionRepository:
                 persisted_files = [item for item in persisted_files if str(item.get("id")) != str(file_id)]
                 persisted_path = removed_file.get("path")
                 if persisted_path:
-                    path = Path(str(persisted_path))
+                    path = from_stored_path(persisted_path)
                     if path.exists() and path.is_file():
                         path.unlink()
 
@@ -403,7 +403,7 @@ class SessionRepository:
                 path = str(item["path"])
                 size = int(item["size"])
                 restore_persisted_file(file_id, name, path, size)
-                file_path = Path(path)
+                file_path = from_stored_path(path)
                 files.append({"id": file_id, "name": name, "extension": file_path.suffix.lower(), "size": size, "sheets": inspect_sheets(file_path)})
             except (KeyError, TypeError, ValueError, OSError):
                 continue

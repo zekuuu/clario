@@ -7,7 +7,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.config.constants import MAX_FILE_SIZE_BYTES, SUPPORTED_FILE_EXTENSIONS
-from app.config.settings import get_settings
+from app.config.settings import from_stored_path, get_settings, to_stored_path
 from app.core.exceptions import AppError, UnsupportedFileError
 
 _files: dict[str, tuple[str, Path, int]] = {}
@@ -69,6 +69,14 @@ def _recover_file_from_disk(file_id: str) -> tuple[str, Path, int] | None:
     return None
 
 
+def _signature_matches(extension: str, content: bytes) -> bool:
+    if extension == ".xlsx":
+        return content.startswith(b"PK\x03\x04")
+    if extension == ".xls":
+        return content.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
+    return b"\x00" not in content[:4096]
+
+
 async def save_upload(upload: UploadFile) -> tuple[str, str, Path, int]:
     original_name = _safe_name(upload.filename or "uploaded-file")
     extension = Path(original_name).suffix.lower()
@@ -77,6 +85,8 @@ async def save_upload(upload: UploadFile) -> tuple[str, str, Path, int]:
     content = await upload.read(MAX_FILE_SIZE_BYTES + 1)
     if not content or len(content) > MAX_FILE_SIZE_BYTES:
         raise UnsupportedFileError("The file is empty or exceeds the 50 MB limit.")
+    if not _signature_matches(extension, content):
+        raise UnsupportedFileError(f"{original_name} does not look like a valid {extension} file.")
     identifier = uuid4().hex
     directory = get_settings().upload_directory
     directory.mkdir(parents=True, exist_ok=True)
@@ -100,10 +110,10 @@ def persist_file(file_id: str, destination_directory: Path) -> dict[str, str | i
     destination = destination_directory / f"{file_id}{source.suffix.lower()}"
     if source.resolve() != destination.resolve():
         shutil.copy2(source, destination)
-    return {"id": file_id, "name": original_name, "path": str(destination), "size": size}
+    return {"id": file_id, "name": original_name, "path": to_stored_path(destination), "size": size}
 
 
 def restore_persisted_file(file_id: str, original_name: str, path: str, size: int) -> tuple[str, Path, int]:
-    restored = (original_name, Path(path), size)
+    restored = (original_name, from_stored_path(path), size)
     _files[file_id] = restored
     return restored

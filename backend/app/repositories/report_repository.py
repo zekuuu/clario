@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 from uuid import uuid4
 
-from app.config.settings import get_settings
+from app.config.settings import from_stored_path, to_stored_path
 from app.database.connection import database
 
 
@@ -12,14 +12,7 @@ class ReportRepository:
     def _session_directory_path(raw_path: str | None) -> Path | None:
         if raw_path in (None, ""):
             return None
-        path = Path(str(raw_path))
-        if not path.is_absolute():
-            path = get_settings().data_directory / path
-        resolved = path.resolve()
-        sessions_root = get_settings().sessions_directory.resolve()
-        if resolved != sessions_root and sessions_root not in resolved.parents:
-            return resolved
-        return resolved
+        return from_stored_path(raw_path).resolve()
 
     @staticmethod
     def is_report_file(path: Path, session_id: str) -> bool:
@@ -29,7 +22,7 @@ class ReportRepository:
         with database() as connection:
             connection.execute(
                 "INSERT INTO reports(id,session_id,file_name,path,created_at) VALUES(?,?,?,?,?)",
-                (uuid4().hex, session_id, path.name, str(path.resolve()), datetime.now(timezone.utc).isoformat()),
+                (uuid4().hex, session_id, path.name, to_stored_path(path), datetime.now(timezone.utc).isoformat()),
             )
 
     def latest_for_session(self, session_id: str) -> Path | None:
@@ -61,7 +54,7 @@ class ReportRepository:
         if not reports_directory.is_dir():
             return []
 
-        stored_by_path = {str(Path(row["path"]).resolve()): row for row in rows}
+        stored_by_path = {str(from_stored_path(row["path"]).resolve()): row for row in rows}
         reports = []
         for path in reports_directory.glob("*.pdf"):
             if not path.is_file() or not self.is_report_file(path, session_id):
@@ -81,8 +74,10 @@ class ReportRepository:
             report.pop("sort_key")
         return reports
 
-    def find_for_session(self, session_id: str, path: str) -> Path | None:
-        requested = str(Path(path).resolve())
+    def find_for_session(self, session_id: str, filename: str) -> Path | None:
+        """Resolve a report by bare filename inside this session's reports folder only."""
+        if not filename or Path(filename).name != filename:
+            return None
         with database() as connection:
             session = connection.execute(
                 "SELECT session_path FROM sessions WHERE id = ? LIMIT 1",
@@ -94,7 +89,7 @@ class ReportRepository:
         if session_path is None:
             return None
         reports_directory = (session_path / "reports").resolve()
-        report_path = Path(requested)
+        report_path = (reports_directory / filename).resolve()
         if report_path.parent != reports_directory or not self.is_report_file(report_path, session_id):
             return None
         return report_path if report_path.is_file() else None
