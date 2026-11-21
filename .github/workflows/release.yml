@@ -56,5 +56,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" "releases/$env:VERSION/Clario_${env:VERSION}_x64-setup.exe" `
-            --draft --prerelease --generate-notes --title "Clario $env:VERSION"
+          $setup = "releases/$env:VERSION/Clario_${env:VERSION}_x64-setup.exe"
+          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+          # Fill in .github/release-notes.md; GitHub appends the generated changelog below it.
+          (Get-Content .github/release-notes.md -Raw).Replace("{{VERSION}}", $env:VERSION).Replace("{{SHA256}}", $hash) |
+            Set-Content release-notes.md -Encoding utf8
+          gh release create "${{ github.ref_name }}" $setup `
+            --draft --prerelease --generate-notes --notes-file release-notes.md --title "Clario $env:VERSION"
