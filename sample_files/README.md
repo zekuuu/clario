@@ -1,4 +1,3 @@
 # Sample fixtures
 
-Phase 2 will add small, synthetic `.xlsx`, `.xls`, and `.csv` fixtures. Do not place confidential procurement documents in this directory.
-
+This folder holds small, synthetic `.xlsx` workbooks for manual testing (fictional companies, no real data). The workbooks themselves are git-ignored; only this README is tracked. Do not place confidential procurement documents in this directory.

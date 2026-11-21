@@ -98,6 +98,8 @@ try {
 }
 finally {
     if ($backend -and -not $backend.HasExited) {
-        Stop-Process -Id $backend.Id
+        # uvicorn --reload spawns a reloader plus a worker (and the venv python is itself a
+        # launcher), so kill the whole process tree or the worker keeps port 8766 busy.
+        & taskkill.exe /PID $backend.Id /T /F | Out-Null
     }
 }
