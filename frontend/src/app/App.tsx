@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { BackendGate } from "../components/layout/BackendGate";
 import { AppProviders } from "./providers";
 import { AppRoutes } from "./routes";
 
@@ -17,8 +18,10 @@ export function App() {
   }, []);
 
   return (
-    <AppProviders>
-      <AppRoutes />
-    </AppProviders>
+    <BackendGate>
+      <AppProviders>
+        <AppRoutes />
+      </AppProviders>
+    </BackendGate>
   );
 }

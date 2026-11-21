@@ -20,7 +20,7 @@ type SidebarView = "sessions" | "workflow";
 const logoLightSrc = "/assets/clario-logo_light.png";
 const logoDarkSrc = "/assets/clario-logo_dark.png";
 
-function Logo({ className = "size-7 object-contain" }: { className?: string }) {
+export function Logo({ className = "size-7 object-contain" }: { className?: string }) {
   return (
     <>
       <img src={logoLightSrc} alt="" aria-hidden="true" className={`clario-logo clario-logo--light ${className}`} />
