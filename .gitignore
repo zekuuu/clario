@@ -14,7 +14,9 @@ venv/
 !.env.example
 *.db
 *.sqlite3
-frontend/src-tauri/
+backend/.pytest-tmp/
+backend/logs/
+*.log.*.locked
 desktop/tauri/gen/
 backend/data/
 backend/uploads/
@@ -28,6 +30,12 @@ Thumbs.db
 /frontend/playwright-report/
 /frontend/blob-report/
 /frontend/.playwright/
+.playwright-mcp/
 
 # Local sample/testing spreadsheets
 /sample_files/
+desktop/tauri/binaries/
+backend/build/
+
+# Built installers (build-desktop.ps1)
+releases/
