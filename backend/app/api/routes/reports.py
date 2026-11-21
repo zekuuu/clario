@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.validation_models import ValidationResult
 from app.repositories.report_repository import ReportRepository
@@ -15,20 +15,18 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 class OpenReportRequest(BaseModel):
-    path: str | None = None
+    filename: str | None = Field(default=None, max_length=255)
 
 
 class ReportInfoResponse(BaseModel):
     filename: str
-    saved_path: str
     created_at: str
 
 
 def report_headers(path: Path) -> dict[str, str]:
-    resolved = path.resolve()
+    # Only the bare filename is exposed; absolute paths stay server-side.
     return {
         "Cache-Control": "no-store",
-        "X-Report-Path": str(resolved),
         "X-Report-Filename": path.name,
     }
 
@@ -59,13 +57,13 @@ async def latest_pdf_report(session_id: str) -> ReportInfoResponse:
     info = ReportRepository().latest_info_for_session(session_id)
     if info is None:
         raise HTTPException(status_code=404, detail="Generated report was not found. Export the report again.")
-    return ReportInfoResponse(filename=info["filename"], saved_path=info["path"], created_at=info["created_at"])
+    return ReportInfoResponse(filename=Path(info["path"]).name, created_at=info["created_at"])
 
 
 @router.get("/{session_id}/saved", response_model=list[ReportInfoResponse])
 async def saved_pdf_reports(session_id: str) -> list[ReportInfoResponse]:
     return [
-        ReportInfoResponse(filename=info["filename"], saved_path=info["path"], created_at=info["created_at"])
+        ReportInfoResponse(filename=Path(info["path"]).name, created_at=info["created_at"])
         for info in ReportRepository().info_for_session(session_id)
     ]
 
@@ -73,29 +71,29 @@ async def saved_pdf_reports(session_id: str) -> list[ReportInfoResponse]:
 @router.post("/{session_id}/open")
 async def open_pdf_external(session_id: str, request: OpenReportRequest | None = None) -> dict[str, str]:
     repository = ReportRepository()
-    requested_path = request.path if request and request.path else None
-    path = repository.find_for_session(session_id, requested_path) if requested_path else repository.latest_for_session(session_id)
+    requested = request.filename if request and request.filename else None
+    path = repository.find_for_session(session_id, requested) if requested else repository.latest_for_session(session_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Generated report was not found. Export the report again.")
     try:
         open_with_default_app(path)
     except OSError as exc:
         raise HTTPException(status_code=500, detail="The report was created, but the operating system could not open it automatically.") from exc
-    return {"status": "opened", "path": str(path.resolve())}
+    return {"status": "opened", "filename": path.name}
 
 
 @router.post("/{session_id}/folder")
 async def open_report_folder(session_id: str, request: OpenReportRequest | None = None) -> dict[str, str]:
     repository = ReportRepository()
-    requested_path = request.path if request and request.path else None
-    path = repository.find_for_session(session_id, requested_path) if requested_path else repository.latest_for_session(session_id)
+    requested = request.filename if request and request.filename else None
+    path = repository.find_for_session(session_id, requested) if requested else repository.latest_for_session(session_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Generated report was not found. Export the report again.")
     try:
         open_with_default_app(path.parent)
     except OSError as exc:
         raise HTTPException(status_code=500, detail="The report folder could not be opened automatically.") from exc
-    return {"status": "opened", "path": str(path.parent.resolve())}
+    return {"status": "opened", "filename": path.name}
 
 
 @router.get("/{session_id}/pdf", response_class=FileResponse)
