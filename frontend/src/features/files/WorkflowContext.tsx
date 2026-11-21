@@ -62,6 +62,11 @@ function uniqueFilesById(files: UploadedFile[]) {
   });
 }
 
+/** Fields and rules are only persisted on run, so the setup is "saved" when it matches the last run/opened setup. */
+export function setupSignature(dataSources: ComparisonDataSource[], rules: ComparisonRule[]) {
+  return JSON.stringify([dataSources.map((source) => ({ ...source, row_setup_confirmed: undefined })), rules]);
+}
+
 function applyStateAction<T>(action: SetStateAction<T>, current: T) {
   return typeof action === "function" ? (action as (value: T) => T)(current) : action;
 }
@@ -82,12 +87,16 @@ interface WorkflowState {
   sourcePreviews: Record<string, DataSourcePreview>;
   setSourcePreview: (id: string, value: DataSourcePreview) => void;
   removeSourcePreview: (id: string) => void;
+  clearSourcePreviews: () => void;
   rules: ComparisonRule[];
-  setRules: (value: ComparisonRule[]) => void;
+  setRules: (value: SetStateAction<ComparisonRule[]>) => void;
   updateRule: (id: string, value: ComparisonRule) => void;
   removeRule: (id: string) => void;
   result: ValidationResult | null;
   setResult: (value: ValidationResult | null) => void;
+  /** True when fields/rules exist that differ from the last run (or opened) setup. */
+  hasUnsavedSetup: boolean;
+  markSetupSaved: (dataSources: ComparisonDataSource[], rules: ComparisonRule[]) => void;
 }
 
 const Context = createContext<WorkflowState | null>(null);
@@ -97,7 +106,9 @@ export function WorkflowProvider({ children }: PropsWithChildren) {
   const [projectName, setProjectName] = useState("");
   // Presets are intentionally not exposed in the current workflow. Keep the
   // legacy state at the neutral custom value for backward-compatible payloads.
-  const [preset, setPreset] = useState<PresetSelection>("custom_comparison_builder");
+  const [preset, setPresetState] = useState<PresetSelection>("custom_comparison_builder");
+  // Nothing in the UI can pick a preset any more, so never let it become "" (which blocked runs).
+  const setPreset = useCallback((value: PresetSelection) => setPresetState(value || "custom_comparison_builder"), []);
   const [files, setFilesState] = useState<UploadedFile[]>([]);
   const [dataSources, setDataSourcesState] = useState<ComparisonDataSource[]>([]);
   const [sourcePreviews, setSourcePreviews] = useState<Record<string, DataSourcePreview>>({});
@@ -125,6 +136,23 @@ export function WorkflowProvider({ children }: PropsWithChildren) {
     writeStoredResult(value);
   }, []);
 
+  const [savedSignature, setSavedSignature] = useState(() => setupSignature([], []));
+  const markSetupSaved = useCallback((sources: ComparisonDataSource[], savedRules: ComparisonRule[]) => {
+    setSavedSignature(setupSignature(sources, savedRules));
+  }, []);
+  const hasSetupContent = rules.length > 0 || dataSources.some((source) => source.fields.length > 0);
+  const hasUnsavedSetup = hasSetupContent && setupSignature(dataSources, rules) !== savedSignature;
+
+  const setSourcePreview = useCallback((id: string, preview: DataSourcePreview) => setSourcePreviews((current) => ({ ...current, [id]: preview })), []);
+  const clearSourcePreviews = useCallback(() => setSourcePreviews({}), []);
+  const removeSourcePreview = useCallback((id: string) => setSourcePreviews((current) => {
+    const next = { ...current };
+    delete next[id];
+    return next;
+  }), []);
+  const updateRule = useCallback((id: string, rule: ComparisonRule) => setRules((current) => current.map((item) => (item.id === id ? rule : item))), []);
+  const removeRule = useCallback((id: string) => setRules((current) => current.filter((item) => item.id !== id)), []);
+
   const value = useMemo(
     () => ({
       sessionId,
@@ -140,20 +168,19 @@ export function WorkflowProvider({ children }: PropsWithChildren) {
       updateDataSource,
       removeDataSource,
       sourcePreviews,
-      setSourcePreview: (id: string, value: DataSourcePreview) => setSourcePreviews((current) => ({ ...current, [id]: value })),
-      removeSourcePreview: (id: string) => setSourcePreviews((current) => {
-        const next = { ...current };
-        delete next[id];
-        return next;
-      }),
+      setSourcePreview,
+      clearSourcePreviews,
+      removeSourcePreview,
       rules,
       setRules,
-      updateRule: (id: string, value: ComparisonRule) => setRules((current) => current.map((item) => (item.id === id ? value : item))),
-      removeRule: (id: string) => setRules((current) => current.filter((item) => item.id !== id)),
+      updateRule,
+      removeRule,
       result,
       setResult,
+      hasUnsavedSetup,
+      markSetupSaved,
     }),
-    [sessionId, projectName, preset, files, dataSources, setDataSources, updateDataSource, removeDataSource, sourcePreviews, rules, result, setResult],
+    [sessionId, projectName, preset, setPreset, files, setFiles, dataSources, setDataSources, updateDataSource, removeDataSource, sourcePreviews, setSourcePreview, clearSourcePreviews, removeSourcePreview, rules, updateRule, removeRule, result, setResult, hasUnsavedSetup, markSetupSaved],
   );
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
