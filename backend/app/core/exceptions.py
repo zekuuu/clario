@@ -8,11 +8,6 @@ class AppError(Exception):
         self.status_code = status_code
 
 
-class InvalidTemplateError(AppError):
-    def __init__(self, message: str = "The selected template is invalid.") -> None:
-        super().__init__(message, "INVALID_TEMPLATE", 422)
-
-
 class UnsupportedFileError(AppError):
     def __init__(self, message: str = "The selected file type is not supported.") -> None:
         super().__init__(message, "UNSUPPORTED_FILE", 415)
