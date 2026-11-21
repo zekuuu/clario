@@ -4,7 +4,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { ReportExportPage } from "../pages/ReportExportPage";
 import { RowSetupPage } from "../pages/RowSetupPage";
 import { SessionComparisonBuilderPage } from "../pages/SessionComparisonBuilderPage";
-import { useEnsureFileSources } from "../pages/SessionComparisonBuilderPage";
+import { useEnsureFileSources } from "../features/files/useEnsureFileSources";
 import { UploadFilesPage } from "../pages/UploadFilesPage";
 import { ValidationResultsPage } from "../pages/ValidationResultsPage";
 import { useWorkflow } from "../features/files/WorkflowContext";
