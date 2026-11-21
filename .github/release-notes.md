@@ -14,9 +14,7 @@
 ## Download
 
 <p align="center">
-<a href="https://github.com/zekuuu/clario/releases/download/v{{VERSION}}/Clario_{{VERSION}}_x64-setup.exe"><img src="https://img.shields.io/badge/Download_for_Windows-{{VERSION}}-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download Clario {{VERSION}} for Windows" height="40"></a>
-<br>
-<sub>Windows 10 and 11, 64-bit · SHA-256: <code>{{SHA256}}</code></sub>
+<a href="https://github.com/zekuuu/clario/releases/download/v{{VERSION}}/Clario_{{VERSION}}_x64-setup.exe"><img src="https://raw.githubusercontent.com/zekuuu/clario/main/.github/assets/download-windows.svg" alt="Download Clario {{VERSION}} for Windows" width="300"></a>
 </p>
 
 ## What Clario does
@@ -35,7 +33,7 @@
 4. Start Clario from the Start menu.
 
 > [!IMPORTANT]
-> The setup is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC". Click **More info**, then **Run anyway**. Some antivirus programs may also flag it; you can check the file against the SHA-256 above.
+> The setup is not code-signed yet, so Windows SmartScreen may show "Windows protected your PC". Click **More info**, then **Run anyway**. Some antivirus programs may also flag it.
 
 ## Where your data is stored
 
