@@ -19,16 +19,17 @@
         "minHeight": 700,
         "dragDropEnabled": false,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "visible": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8766 http://localhost:8766; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8766 http://localhost:8766; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
     }
   },
   "bundle": {
     "active": false,
-    "targets": "all",
+    "targets": "nsis",
     "icon": [
       "icons/icon.ico",
       "icons/icon.png"

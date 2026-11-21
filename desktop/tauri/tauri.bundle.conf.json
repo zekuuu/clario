@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "active": true,
+    "targets": "nsis",
+    "externalBin": [
+      "binaries/clario-backend"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "both",
+        "installerHooks": "installer-hooks.nsh",
+        "customLanguageFiles": {
+          "English": "nsis/English.nsh"
+        }
+      }
+    }
+  }
+}
