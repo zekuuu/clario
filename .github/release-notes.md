@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/xKurty06/clario/main/frontend/public/assets/clario-logo_dark.png" width="96" alt="Clario logo">
+<img src="https://raw.githubusercontent.com/zekuuu/clario/main/frontend/public/assets/clario-logo_dark.png" width="96" alt="Clario logo">
 
 # Clario {{VERSION}}
 
@@ -9,15 +9,15 @@
 </div>
 
 > [!NOTE]
-> This is a pre-release. It works end to end, but it is still early. Please report problems in [Issues](https://github.com/xKurty06/clario/issues).
+> This is a pre-release. It works end to end, but it is still early. Please report problems in [Issues](https://github.com/zekuuu/clario/issues).
 
 ## Download
 
-| File | For |
-|---|---|
-| [`Clario_{{VERSION}}_x64-setup.exe`](https://github.com/xKurty06/clario/releases/download/v{{VERSION}}/Clario_{{VERSION}}_x64-setup.exe) | Windows 10 and 11, 64-bit |
-
-SHA-256: `{{SHA256}}`
+<p align="center">
+<a href="https://github.com/zekuuu/clario/releases/download/v{{VERSION}}/Clario_{{VERSION}}_x64-setup.exe"><img src="https://img.shields.io/badge/Download_for_Windows-{{VERSION}}-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download Clario {{VERSION}} for Windows" height="40"></a>
+<br>
+<sub>Windows 10 and 11, 64-bit · SHA-256: <code>{{SHA256}}</code></sub>
+</p>
 
 ## What Clario does
 
